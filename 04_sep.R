@@ -67,8 +67,6 @@ plot(map)
 map1 <- rnaturalearth::ne_states("Saudi Arabia", returnclass = "sf")
 names(map1)
 
-
-
 ##########https://r-spatial.github.io/sf/articles/sf1.html
 
 library(sf)
@@ -78,3 +76,44 @@ attr(nc, "sf_column")
 class(nc$geometry)
 print(nc[9:15], n = 3)
 methods(class = "sf") 
+
+
+
+############################# 05.09.22  #############
+#https://www.paulamoraga.com/book-gds/03-bayesian-inference.html
+#https://www.paulamoraga.com/book-geospatial/sec-inla.html
+#https://www.r-inla.org/download-install
+
+#install.packages("INLA",
+#                repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
+
+
+#install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/testing"), dep=TRUE)
+
+
+library(INLA)
+
+#the data
+Surg <- Surg
+#p <- probability of death
+#n <- numebr of surgeries
+#Y <- number of deaths
+#log is the predictor
+#alpha <- intersect
+# after + <- ramdon efects
+
+prior.prec <- list(prec = list(prior = "pc.prec",
+                               param = c(1, 0.01)))
+
+formula <- r ~ f(hospital, model = "iid", hyper = prior.prec)
+
+res <- inla(formula,
+            data = Surg,
+            family = "binomial", Ntrials = n,
+            control.predictor = list(compute = TRUE),
+            control.compute = list(dic = TRUE)
+)
+#https://groups.google.com/g/r-inla-discussion-group/c/v7ZyouA3Vfc
+class(Surg)
+
+
