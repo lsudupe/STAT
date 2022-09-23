@@ -42,53 +42,69 @@ pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Median_income)
 le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income), fillOpacity = 0.5) %>%
   addLegend(pal = pale, values = ~Median_income, opacity = 0.5, title = "Median_income", position = "bottomright")
 
+le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income), fillOpacity = 0.5,
+                  highlightOptions = highlightOptions(weight = 4),
+                  label = labels,
+                  labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                              textsize = "15px", direction = "auto")) %>%
+  addLegend(pal = pale, values = ~Median_income, opacity = 0.5, title = "SMR", position = "bottomright")
 
-#Let's get the neighbors of each county. FUnction poly2nb() spdep library
+###Modelling
 library(spdep)
-nb <- poly2nb(map)
-head(nb)
-nb[[1]] #the first county has 2 neighbours
-
-d <- data.frame(county = names(map), neigh = rep(0, length(map)))
-rownames(d) <- names(map)
-map <- SpatialPolygonsDataFrame(map, d, match.ID = TRUE)
-map$neigh[nb[[2]]] <- 1
-map$neigh[nb[[6]]] <- 1
-map$neigh[nb[[13]]] <- 1
-
-##add different vars to my data
-coord <- coordinates(map)
-map$long <- coord[, 1]
-map$lat <- coord[, 2]
-map$ID <- 1:dim(map@data)[1]
-
-##create the map
-library(sf)
-mapsf <- st_as_sf(map)
-class(mapsf)
-library(ggplot2)
-ggplot(mapsf) + geom_sf(aes(fill = as.factor(neigh))) +
-  geom_text(aes(long, lat, label = ID), color = "white") +
-  theme_bw() + guides(fill = FALSE)
-
-
-
-###############MODELIING###############
 library(INLA)
-library(spdep)
+nb_nz <- poly2nb(nz_region)
+head(nb_nz)
+nb_nz[[1]] #the first county has 2 neighbours
 
+nb2INLA("nz_region.adj", nb_nz)
+ge <- inla.read.graph(filename = "nz_region.adj")
 
-nb2INLA("map.adj", nb)
-g <- inla.read.graph(filename = "map.adj")
-
-##Inference using INLA
-
-map$re_u <- 1:nrow(map@data)
-map$re_v <- 1:nrow(map@data)
-
+###inference using inla
+#create variables
+nz_region$re_u <- 1:nrow(nz_region@data)
+nz_region$re_v <- 1:nrow(nz_region@data)
 #formula
-formula <- Median_income ~ Population + f(re_u, model = "besag", graph = g, scale.model = TRUE) + f(re_v, model = "iid")
+formula <- Sex_ratio ~ Median_income + f(re_u, model = "besag", graph = ge, scale.model = TRUE) + f(re_v, model = "iid")
+#https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
+rese <- inla(formula, family = "xpoisson", data = nz_region@data, control.predictor = list(compute = TRUE))
 
-nz$Median_income
-res <- inla(formula, family = "poisson", data = map@data, E = E, control.predictor = list(compute = TRUE))
+###results
+summary(rese)
+
+library(ggplot2)
+marginale <- inla.smarginal(rese$marginals.fixed$Median_income)
+marginale <- data.frame(marginale)
+ggplot(marginale, aes(x = x, y = y)) + geom_line() + labs(x = expression(beta[1]), y = "Density") +
+  geom_vline(xintercept = 0, col = "blue") + theme_bw()
+##IT IS NOT OKEY
+
+###add results to map
+head(rese$summary.fitted.values)
+
+nz_region$RR <- rese$summary.fitted.values[, "mean"]
+nz_region$LL <- rese$summary.fitted.values[, "0.025quant"]
+nz_region$UL <- rese$summary.fitted.values[, "0.975quant"]
+
+###mappring median income
+pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$RR)
+
+labels <- sprintf("<strong> %s </strong> <br/> Observed: %s <br/> Expected: %s <br/>
+                  Smokers proportion: %s <br/>SMR: %s <br/>RR: %s (%s, %s)",
+                  nz_region$Name, nz_region$Sex_ratio,  #round(nz_region$E, 2),  
+                  nz_region$Median_income, round(nz_region$Population, 2),
+                  round(nz_region$RR, 2), round(nz_region$LL, 2), round(nz_region$UL, 2)) %>%
+  lapply(htmltools::HTML)
+
+leaflet(nz_region) %>% addTiles() %>%
+  addPolygons(color = "grey", weight = 1, fillColor = ~pale(RR),  fillOpacity = 0.5,
+              highlightOptions = highlightOptions(weight = 4),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px", direction = "auto")) %>%
+  addLegend(pal = pal, values = ~RR, opacity = 0.5, title = "RR", position = "bottomright")
+
+
+
+
+
 
