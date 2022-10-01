@@ -58,9 +58,7 @@ library(epitools)
 ##population in each 
 ##SMR in each area
 nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata = 2)
-
-d$E <- E
-head(d)
+nz$SMR <- nz$Median_income / nz$e
 
 # regions additional info
 devtools::install_github("ellisp/nzelect/pkg2")
