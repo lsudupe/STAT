@@ -1,0 +1,44 @@
+---
+title: 'Project 1: Areal data analysis'
+author: "Laura Sudupe. email: laura.medinilla@kaust.eu.sa"
+date: "10/1/2022"
+geometry: margin=2cm
+fontsize: 12pt
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# New Zeland aeral data analysis
+
+
+### Abstract
+
+**I claim absolutely no credit for this visualization, which I consider one of the most best I have ever seen.  All credit belongs to the <a href = "http://www.nytimes.com/interactive/2011/05/31/business/economy/case-shiller-index.html">original source</a>.  If anybody believes this to be not fair use, I will take it down immediately.  I am implicitly assuming approval for this fork due to the <a href = "http://datastori.es/data-stories-22-nyt-graphics-and-d3-with-mike-bostock-and-shan-carter/">data.stories interview</a>.** 
+
+```{r echo=F, warning= F, message=F}
+#opts_chunk$set(message = FALSE, warning = FALSE, error = FALSE, tidy = FALSE, cache = FALSE,results = 'asis' )
+```
+
+
+### Introduction
+
+
+### Data
+
+
+
+### Analyses
+
+
+### Results and Interpretation
+
+
+
+### Discussion section
+
