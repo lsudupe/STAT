@@ -12,6 +12,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+###LIBRARIES CHUNCK
+```
+
 
 
 # New Zeland aeral data analysis
@@ -19,7 +23,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Abstract
 
-**I claim absolutely no credit for this visualization, which I consider one of the most best I have ever seen.  All credit belongs to the <a href = "http://www.nytimes.com/interactive/2011/05/31/business/economy/case-shiller-index.html">original source</a>.  If anybody believes this to be not fair use, I will take it down immediately.  I am implicitly assuming approval for this fork due to the <a href = "http://datastori.es/data-stories-22-nyt-graphics-and-d3-with-mike-bostock-and-shan-carter/">data.stories interview</a>.** 
+**This project will be focused on analyzing New Zeland (NZ) aeral data using Rstudio. The project is the first one of the three we need to prepare for the <a href = "https://www.paulamoraga.com/book-gds/index.html">STAT394 course</a>. In the first section we are going to describe NZ data and briefly explain areal data type. Next, we will focus on preparing the data for the statistical modelling. After this, we are going to go through the results, understanding the meaning and finally a short discussion of the project.**
 
 ```{r echo=F, warning= F, message=F}
 #opts_chunk$set(message = FALSE, warning = FALSE, error = FALSE, tidy = FALSE, cache = FALSE,results = 'asis' )
@@ -28,17 +32,31 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Introduction
 
+Aeral data
+
+NZ data
+
+STAT394 course, INLA modelling
 
 ### Data
 
-
+Statistical description of the data
+Variables of the data
+Visual plots of the data
 
 ### Analyses
 
+Data modelling. Explain what is going on
 
 ### Results and Interpretation
 
+Results statistical
 
+Visual plots
 
 ### Discussion section
+
+What can I do better
+What I learned
+General comment
 
