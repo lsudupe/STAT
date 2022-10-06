@@ -12,10 +12,16 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-###LIBRARIES CHUNCK
+```{r libraries, include =FALSE}
+library(sf)
+library(epitools)
+library(SpatialEpi)
+library(spData)
+library(ggplot2)
+library(leaflet)
+library(spdep)
+library(INLA)
 ```
-
 
 
 # New Zeland aeral data analysis
@@ -40,9 +46,64 @@ STAT394 course, INLA modelling
 
 ### Data
 
+```{r data, include=FALSE}
+data("nz")
+class(nz)
+names(nz)
+head(nz)
+?nz
+```
+
+
 Statistical description of the data
 Variables of the data
 Visual plots of the data
+
+```{r prepare_data, include=FALSE}
+nz$Island <- as.factor(nz$Island)
+##https://rdrr.io/cran/SpatialEpi/src/R/expected.R
+nz$side <- as.integer(ifelse(nz$Island == "North", 0, ifelse(nz$Island == "South", 1, "no data")))
+####sex ratio transform 0 woman, 1 man
+nz$Sex_ratio
+#female:male
+nz$sex <- ifelse(nz$Sex_ratio == 1, 'same', ifelse(nz$Sex_ratio > 1, 'female', "male"))
+
+###expected cases
+##area: name of the area
+##Y: observed number of cases, in my case, median income
+##E: expected number of cases in my case, expected median income
+##quiero que dependa de
+##population in each 
+##SMR in each area
+nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata = 2)
+nz$SMR <- nz$Median_income / nz$e
+```
+
+
+```{r summary, message=FALSE, echo=F}
+if (requireNamespace("sf", quietly = TRUE)) {
+  library(sf)
+  summary(nz)
+  plot(nz)
+}
+```
+
+
+```{r spatial, message=FALSE, echo=F}
+###Data preparation
+
+# convert to SpatialPolygonsDataFrame
+map_spdf <- as_Spatial(nz, IDs = TRUE) ##EL BUENO
+class(map_spdf)
+#plot(map_spdf)
+
+#https://blog.exploratory.io/making-maps-for-new-zealand-regions-and-territories-in-r-4400333df644
+wgs84 = '+proj=longlat +datum=WGS84'
+nz_region <- spTransform(map_spdf, CRS(wgs84))
+nz_region@data[["Population"]] <- as.integer(nz_region@data[["Population"]])
+
+```
+
 
 ### Analyses
 
