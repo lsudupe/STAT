@@ -61,6 +61,26 @@ class(map_spdf)
 wgs84 = '+proj=longlat +datum=WGS84'
 nz_region <- spTransform(map_spdf, CRS(wgs84))
 
+################################################
+
+###Let's try some plots
+#https://cougrstats.wordpress.com/2018/04/30/mapping-in-r/
+library(tmap)    # for static and interactive maps
+library(mapview)
+map_prueba <- tm_shape(nz_region) + tm_polygons()
+# here is a silly map based on randomly assigned 'a' or 'b'
+tm_shape(nz_region)+
+  tm_fill(col='Name', palette='Set1')+
+  tm_facets(by='Island')
+
+#https://jakubnowosad.com/SIGR2021/workshop1/workshop1_rl.html#20
+nz_density = nz %>% 
+  mutate(Density = Population / Land_area)
+nz_density %>% 
+  select(Density) %>% 
+  plot()
+
+
 ###Mapping median income
 le <- leaflet(nz_region) %>% addTiles()
 
@@ -94,11 +114,13 @@ formula <- Median_income ~ Sex_ratio + f(re_u, model = "besag", graph = ge, scal
 
 #https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
 rese <- inla(formula, family = "poisson", data = nz_region@data , E = e,
-             control.predictor = list(compute = TRUE))
+             control.predictor = list(compute = TRUE),
+             control.compute=list(return.marginals.predictor=TRUE))
 
 #names(inla.models()$likelihood)
 ###results
 summary(rese)
+rese$summary.fitted.values
 
 marginale <- inla.smarginal(rese$marginals.fixed$Sex_ratio)
 marginale <- data.frame(marginale)
