@@ -21,6 +21,11 @@ library(ggplot2)
 library(leaflet)
 library(spdep)
 library(INLA)
+library(tidyverse)
+library(palmerpenguins)
+library(ggdist)
+library(gridExtra)
+library(PerformanceAnalytics)
 ```
 
 
@@ -46,40 +51,122 @@ STAT394 course, INLA modelling
 
 ### Data
 
+Statistical description of the data
+
 ```{r data, include=FALSE}
 data("nz")
-class(nz)
-names(nz)
 head(nz)
+str(nz)
 ?nz
 ```
 
+```{r statistical_description, echo = F}
+class(nz)
+names(nz)
+```
 
-Statistical description of the data
-Variables of the data
-Visual plots of the data
+**The dataset is "sf" class and it contains 16 observations and 7 variables. The followings:**
 
-```{r prepare_data, include=FALSE}
+**- Name: The county name**
+
+**- Island: North or Shout location of the county**
+
+**- Land_area: The area of each county**
+
+**- Population: The total population of each county**
+
+**- Median_income: Median income of the county**
+
+**- Sex_ratio: Ratio in each of the counties**
+
+**- Geom: The variable with the spatial information**
+
+
+**In our case, we are going to focus on the median income and try to see the dependence of it with the population in each county. In the next plots we can observe how are our variables distributed. For the population, we can see almost all the points are bellow 500 000. We have a pick in the South with more counties with low population, the north counties are more homogeneous. If we focus on the Median_income, the South shows most of the point between 25 000 and 30 000. In the north, the range of values is larger. Even though, the south counties show us more homogeneus distribution of the Land_area than the North.**
+
+```{r statistical_description_1, echo=F}
+a <- nz %>%
+  ggplot(aes(x=Population, y=Island, fill=Island))+
+  stat_slab(aes(thickness = stat(pdf*n)), 
+                scale = 0.3) +
+  stat_dotsinterval(side = "bottom", 
+                    scale = 0.3, 
+                    slab_size = NA) 
+b <- nz %>%
+  ggplot(aes(x=Median_income, y=Island, fill=Island))+
+  stat_slab(aes(thickness = stat(pdf*n)), 
+                scale = 0.3) +
+  stat_dotsinterval(side = "bottom", 
+                    scale = 0.3, 
+                    slab_size = NA)
+c <- nz %>%
+  ggplot(aes(x=Land_area, y=Island, fill=Island))+
+  stat_slab(aes(thickness = stat(pdf*n)), 
+                scale = 0.3) +
+  stat_dotsinterval(side = "bottom", 
+                    scale = 0.3, 
+                    slab_size = NA) 
+
+grid.arrange(a, b, c, ncol=2)
+```
+
+
+**In this data we have the sex_ratio. This variable give us the ratio of female to males in a population, it tends to be 1:1. In our case, we are going to transform the data**
+
+**-Sex_ratio = 1, then "same"**
+
+**-Sex_ratio > 1, then "female"**
+
+**-Sex_ratio < 1, then "male"**
+
+
+```{r statistical_description_3, echo=F, message=FALSE, warning=FALSE}
 nz$Island <- as.factor(nz$Island)
 ##https://rdrr.io/cran/SpatialEpi/src/R/expected.R
 nz$side <- as.integer(ifelse(nz$Island == "North", 0, ifelse(nz$Island == "South", 1, "no data")))
-####sex ratio transform 0 woman, 1 man
-nz$Sex_ratio
-#female:male
 nz$sex <- ifelse(nz$Sex_ratio == 1, 'same', ifelse(nz$Sex_ratio > 1, 'female', "male"))
+nz$Population <- as.integer(nz$Population)
 
 ###expected cases
 ##area: name of the area
 ##Y: observed number of cases, in my case, median income
 ##E: expected number of cases in my case, expected median income
-##quiero que dependa de
+##I want it to depend on
 ##population in each 
-##SMR in each area
-nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata = 2)
-nz$SMR <- nz$Median_income / nz$e
+##SMIR in each area
+#nz$RMISR <- sum(nz$Median_income[nz$sex == "male"]) / sum(nz$Median_income[nz$sex == "female"])
+
+```
+
+**In the next plot we check the correlation between the principal variables. **
+
+```{r statistical_description_2, echo=F, message=FALSE, warning=FALSE}
+nz$Population <- as.numeric(nz$Population)
+nz$Median_income <- as.numeric(nz$Median_income)
+nz$Sex_ratio <- as.numeric(nz$Sex_ratio)
+nz$Land_area <- as.numeric(nz$Land_area)
+b<- nz[,3:6]
+b$geom <- NULL
+
+chart.Correlation(b, histogram = TRUE, method = "pearson")
 ```
 
 
+
+
+
+**Along with the observed values, we want to know the expected ones. For this, we use the expected() function of the SpatialEpi package. For this analysis, we want to calculate the expected median_income. We divided the data between sex and hemisphere**
+
+```{r statistical_description_4, echo=T}
+#Expected 
+nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata = 4)
+```
+
+```{r statistical_description_5, echo=F}
+nz$SMIR <- nz$Median_income / nz$e
+```
+
+**Let's see our final variables in a plot**
 ```{r summary, message=FALSE, echo=F}
 if (requireNamespace("sf", quietly = TRUE)) {
   library(sf)
@@ -89,31 +176,123 @@ if (requireNamespace("sf", quietly = TRUE)) {
 ```
 
 
-```{r spatial, message=FALSE, echo=F}
-###Data preparation
+Variables of the data
 
-# convert to SpatialPolygonsDataFrame
-map_spdf <- as_Spatial(nz, IDs = TRUE) ##EL BUENO
-class(map_spdf)
-#plot(map_spdf)
 
-#https://blog.exploratory.io/making-maps-for-new-zealand-regions-and-territories-in-r-4400333df644
+**In our case, the map does not have the Coordinate Reference System (CRS) data. For this reason, we need to add it by ourself. Also, we need to convert the data to SpatialPolygonsDataFrame**
+
+```{r spatial, message=FALSE, echo=T}
+#convert to SpatialPolygonsDataFrame
+map_spdf <- as_Spatial(nz, IDs = TRUE) 
 wgs84 = '+proj=longlat +datum=WGS84'
 nz_region <- spTransform(map_spdf, CRS(wgs84))
-nz_region@data[["Population"]] <- as.integer(nz_region@data[["Population"]])
 
+class(map_spdf)
 ```
 
+
+### Visual plots of the data
+
+```{r SMIR, message=FALSE, echo=F}
+###Mapping SMIR
+#le <- leaflet(nz_region) %>% addTiles()
+#pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$SMIR)
+
+#le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(SMIR), fillOpacity = 0.5) %>%
+  #leaflet::addLegend(pal = pale, values = ~SMIR, opacity = 0.5, title = "SMIR", position = "bottomright")
+```
+
+```{r Median_income, message=FALSE, echo=F}
+###Mapping median income
+le <- leaflet(nz_region) %>% addTiles()
+pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Median_income)
+
+le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income), fillOpacity = 0.5) %>%
+  leaflet::addLegend(pal = pale, values = ~Median_income, opacity = 0.5, title = "Median_income", position = "bottomright")
+```
+
+```{r Population, message=FALSE, echo=F}
+###Mapping Population
+le <- leaflet(nz_region) %>% addTiles()
+pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Population)
+
+le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Population), fillOpacity = 0.5) %>%
+  leaflet::addLegend(pal = pale, values = ~Population, opacity = 0.5, title = "Population", position = "bottomright")
+```
 
 ### Analyses
 
 Data modelling. Explain what is going on
+
+
+```{r modelling, message=FALSE, echo=F}
+###Modelling
+nb_nz <- poly2nb(nz_region)
+head(nb_nz)
+nb_nz[[1]] #the first county has 2 neighbours
+
+nb2INLA("nz_region.adj", nb_nz)
+ge <- inla.read.graph(filename = "nz_region.adj")
+
+###inference using inla
+#create variables
+nz_region$re_u <- 1:nrow(nz_region@data)
+nz_region$re_v <- 1:nrow(nz_region@data)
+
+formula <- Median_income ~ Population + f(re_u, model = "besag", graph = ge, scale.model = TRUE) + f(re_v, model = "iid")
+
+#https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
+rese <- inla(formula, family = "poisson", data = nz_region@data , E = e,
+             control.predictor = list(compute = TRUE),
+             control.compute=list(return.marginals.predictor=TRUE))
+
+```
 
 ### Results and Interpretation
 
 Results statistical
 
 Visual plots
+
+```{r results, message=FALSE, echo=F}
+#names(inla.models()$likelihood)
+###results
+#summary(rese)
+rese$summary.fitted.values
+
+marginale <- inla.smarginal(rese$marginals.fixed$Population)
+marginale <- data.frame(marginale)
+ggplot(marginale, aes(x = x, y = y)) + geom_line() + labs(x = expression(beta[1]), y = "Density") +
+  geom_vline(xintercept = 0, col = "blue") + theme_bw()
+```
+
+
+```{r results_2, message=FALSE, echo=F}
+###add results to map
+head(rese$summary.fitted.values)
+
+nz_region$RR <- rese$summary.fitted.values[, "mean"]
+nz_region$LL <- rese$summary.fitted.values[, "0.025quant"]
+nz_region$UL <- rese$summary.fitted.values[, "0.975quant"]
+
+###mappring median income
+pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$RR)
+
+labels <- sprintf("<strong> %s </strong> <br/> Observed: %s <br/> Expected: %s <br/>
+                  Smokers proportion: %s <br/>SMR: %s <br/>RR: %s (%s, %s)",
+                  nz_region$Name, nz_region$Median_income,  round(nz_region$e, 2),  
+                  nz_region$Sex_ratio, round(nz_region$SMIR, 2),
+                  round(nz_region$RR, 2), round(nz_region$LL, 2), round(nz_region$UL, 2)) %>%
+  lapply(htmltools::HTML)
+
+leaflet(nz_region) %>% addTiles() %>%
+  addPolygons(color = "grey", weight = 1, fillColor = ~pale(RR),  fillOpacity = 0.5,
+              highlightOptions = highlightOptions(weight = 4),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px", direction = "auto")) %>%
+  leaflet::addLegend(pal = pale, values = ~RR, opacity = 0.5, title = "RR", position = "bottomright")
+```
 
 ### Discussion section
 
