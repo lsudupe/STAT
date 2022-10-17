@@ -123,7 +123,6 @@ grid.arrange(a, b, c, ncol=2)
 ```{r statistical_description_3, echo=F, message=FALSE, warning=FALSE}
 nz$Island <- as.factor(nz$Island)
 ##https://rdrr.io/cran/SpatialEpi/src/R/expected.R
-nz$side <- as.integer(ifelse(nz$Island == "North", 0, ifelse(nz$Island == "South", 1, "no data")))
 nz$sex <- ifelse(nz$Sex_ratio == 1, 'same', ifelse(nz$Sex_ratio > 1, 'female', "male"))
 nz$Population <- as.integer(nz$Population)
 
@@ -138,7 +137,7 @@ nz$Population <- as.integer(nz$Population)
 
 ```
 
-**In the next plot we check the correlation between the principal variables. **
+**In the next plot we check the correlation between the principal variables. There is a correlation between the Land_area and the Sex_ratio. When Land_area values is decreasing, the Sex_ratio is also decreasing, positive correlation. Overall, we are not seeing a bit correlation values between variables. In this work we are going to focus on the Median_income as a response variable, we can see a 0.44 correlation score between the Median_income and Population variables.**
 
 ```{r statistical_description_2, echo=F, message=FALSE, warning=FALSE}
 nz$Population <- as.numeric(nz$Population)
@@ -153,8 +152,6 @@ chart.Correlation(b, histogram = TRUE, method = "pearson")
 
 
 
-
-
 **Along with the observed values, we want to know the expected ones. For this, we use the expected() function of the SpatialEpi package. For this analysis, we want to calculate the expected median_income. We divided the data between sex and hemisphere**
 
 ```{r statistical_description_4, echo=T}
@@ -166,7 +163,10 @@ nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata 
 nz$SMIR <- nz$Median_income / nz$e
 ```
 
-**Let's see our final variables in a plot**
+
+**Let's see our final variables in a spatial plot. We can see that only in one of the counties the ratio between female and males is higher for females**
+
+
 ```{r summary, message=FALSE, echo=F}
 if (requireNamespace("sf", quietly = TRUE)) {
   library(sf)
@@ -174,9 +174,6 @@ if (requireNamespace("sf", quietly = TRUE)) {
   plot(nz)
 }
 ```
-
-
-Variables of the data
 
 
 **In our case, the map does not have the Coordinate Reference System (CRS) data. For this reason, we need to add it by ourself. Also, we need to convert the data to SpatialPolygonsDataFrame**
@@ -192,6 +189,8 @@ class(map_spdf)
 
 
 ### Visual plots of the data
+
+**Let's focus on the Median_income, We can see Welington county in the North is the one with the highest income. In general the south has more heterogeneous income**
 
 ```{r SMIR, message=FALSE, echo=F}
 ###Mapping SMIR
@@ -211,6 +210,8 @@ le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income),
   leaflet::addLegend(pal = pale, values = ~Median_income, opacity = 0.5, title = "Median_income", position = "bottomright")
 ```
 
+**Related to the Population, Auckland has the highest population values. In general, we can see a heterogeneus landscape in the map.**
+
 ```{r Population, message=FALSE, echo=F}
 ###Mapping Population
 le <- leaflet(nz_region) %>% addTiles()
@@ -222,11 +223,23 @@ le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Population), fi
 
 ### Analyses
 
-Data modelling. Explain what is going on
+***For this proyect, we are going to use <a href = "https://www.r-inla.org/">INLA package</a> to model the data. This package is used to do approximate Bayesian inference for Latent Gaussian Models***
+
+***In our case, Yi is going to be the observed Median_income and Ei the expected one.  ***
+
+Let Yi and Ei be the observed and expected number of disesase cases, respectively, and let θi be the relative risk for county i=1,…,n. The model is specified as follows:
+
+Yi|θi∼Poisson(Ei×θi), i=1,…,n,
+
+log(θi)=β0+β1×smokingi+ui+vi.
+
+β0 is the intercept,
+β1 is the coefficient of the smokers proportion covariate,
+ui is a structured spatial effect, ui|u−i∼N(u¯δi,1τunδi) (Conditionally autoregressive model (CAR)),
+vi is an unstructured spatial effect, vi∼N(0,1/τv).
 
 
-```{r modelling, message=FALSE, echo=F}
-###Modelling
+```{r modelling_1, message=FALSE, echo=F, include=FALSE}
 nb_nz <- poly2nb(nz_region)
 head(nb_nz)
 nb_nz[[1]] #the first county has 2 neighbours
@@ -238,21 +251,46 @@ ge <- inla.read.graph(filename = "nz_region.adj")
 #create variables
 nz_region$re_u <- 1:nrow(nz_region@data)
 nz_region$re_v <- 1:nrow(nz_region@data)
+```
 
+***Define the formula***
+
+```{r modelling_2, message=FALSE, echo=T}
 formula <- Median_income ~ Population + f(re_u, model = "besag", graph = ge, scale.model = TRUE) + f(re_v, model = "iid")
+
+```
+
+
+***Let's fit the model***
+
+```{r modelling_3, message=FALSE, echo=T}
 
 #https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
 rese <- inla(formula, family = "poisson", data = nz_region@data , E = e,
              control.predictor = list(compute = TRUE),
              control.compute=list(return.marginals.predictor=TRUE))
 
+
 ```
+
+
 
 ### Results and Interpretation
 
-Results statistical
+***Extraction of the posterior information***
 
-Visual plots
+```{r}
+library(faraway)
+library(gridExtra)
+#http://julianfaraway.github.io/brinla/examples/chicago.html
+#https://github.com/julianfaraway/brinla
+#remotes::install_github("julianfaraway/brinla")
+library(brinla)
+bri.hyperpar.summary(rese)
+bri.hyperpar.plot(rese)
+bri.fixed.plot(rese)
+```
+
 
 ```{r results, message=FALSE, echo=F}
 #names(inla.models()$likelihood)
@@ -297,6 +335,18 @@ leaflet(nz_region) %>% addTiles() %>%
 ### Discussion section
 
 What can I do better
+
+  - More variables to check
+  - Low number of data points to proper work
+  
 What I learned
+
+  - Manipulate spatial data
+  - Show results in spatial data
+  - Use INLA package
+  - Deliver results
+  
 General comment
+
+  - 
 
