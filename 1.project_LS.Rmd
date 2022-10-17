@@ -107,7 +107,15 @@ c <- nz %>%
                     scale = 0.3, 
                     slab_size = NA) 
 
-grid.arrange(a, b, c, ncol=2)
+d <- nz %>%
+  ggplot(aes(x=Sex_ratio, y=Island, fill=Island))+
+  stat_slab(aes(thickness = stat(pdf*n)), 
+                scale = 0.3) +
+  stat_dotsinterval(side = "bottom", 
+                    scale = 0.3, 
+                    slab_size = NA) 
+
+grid.arrange(a, b, c, d,  ncol=2)
 ```
 
 
@@ -178,6 +186,7 @@ if (requireNamespace("sf", quietly = TRUE)) {
 
 **In our case, the map does not have the Coordinate Reference System (CRS) data. For this reason, we need to add it by ourself. Also, we need to convert the data to SpatialPolygonsDataFrame**
 
+
 ```{r spatial, message=FALSE, echo=T}
 #convert to SpatialPolygonsDataFrame
 map_spdf <- as_Spatial(nz, IDs = TRUE) 
@@ -192,6 +201,7 @@ class(map_spdf)
 
 **Let's focus on the Median_income, We can see Welington county in the North is the one with the highest income. In general the south has more heterogeneous income**
 
+
 ```{r SMIR, message=FALSE, echo=F}
 ###Mapping SMIR
 #le <- leaflet(nz_region) %>% addTiles()
@@ -200,6 +210,8 @@ class(map_spdf)
 #le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(SMIR), fillOpacity = 0.5) %>%
   #leaflet::addLegend(pal = pale, values = ~SMIR, opacity = 0.5, title = "SMIR", position = "bottomright")
 ```
+
+
 
 ```{r Median_income, message=FALSE, echo=F}
 ###Mapping median income
@@ -211,6 +223,7 @@ le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income),
 ```
 
 **Related to the Population, Auckland has the highest population values. In general, we can see a heterogeneus landscape in the map.**
+
 
 ```{r Population, message=FALSE, echo=F}
 ###Mapping Population
@@ -239,6 +252,9 @@ ui is a structured spatial effect, ui|u−i∼N(u¯δi,1τunδi) (Conditionally 
 vi is an unstructured spatial effect, vi∼N(0,1/τv).
 
 
+***We need to define some parameters before running the model. First, we need to created a neighborhood matrix where we define the spatial random effect. With poly2nb() function we create a neighbors list based on the areas surrounding the boundaries. For each area, we have the indices of its neighbors. After this, with nb2INLA() we transform the list in a file representing the matrix. R-INLA package need this file to work with to be able to specify the spatial random effect.***
+
+
 ```{r modelling_1, message=FALSE, echo=F, include=FALSE}
 nb_nz <- poly2nb(nz_region)
 head(nb_nz)
@@ -246,30 +262,40 @@ nb_nz[[1]] #the first county has 2 neighbours
 
 nb2INLA("nz_region.adj", nb_nz)
 ge <- inla.read.graph(filename = "nz_region.adj")
+```
 
+
+
+***For the model, we need to create two variables, where we are going to have the random effect values. Ui to model the spatial residual variation, and vi to model unstructured noise.***
+
+
+
+```{r modelling_2, message=FALSE, echo=F, include=FALSE}
 ###inference using inla
 #create variables
 nz_region$re_u <- 1:nrow(nz_region@data)
 nz_region$re_v <- 1:nrow(nz_region@data)
 ```
 
+
 ***Define the formula***
 
-```{r modelling_2, message=FALSE, echo=T}
-formula <- Median_income ~ Population + f(re_u, model = "besag", graph = ge, scale.model = TRUE) + f(re_v, model = "iid")
-
+```{r modelling_3, message=FALSE, echo=T}
+formula <- Median_income ~ Population + 
+  f(re_u, model = "besag", graph = ge, scale.model = TRUE) + 
+  f(re_v, model = "iid")
 ```
+
 
 
 ***Let's fit the model***
 
-```{r modelling_3, message=FALSE, echo=T}
-
+```{r modelling_4, message=FALSE, echo=T}
 #https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
-rese <- inla(formula, family = "poisson", data = nz_region@data , E = e,
+rese <- inla(formula, family = "poisson", data = nz_region@data,
+             E = e,
              control.predictor = list(compute = TRUE),
              control.compute=list(return.marginals.predictor=TRUE))
-
 
 ```
 
@@ -277,7 +303,24 @@ rese <- inla(formula, family = "poisson", data = nz_region@data , E = e,
 
 ### Results and Interpretation
 
+We can focus on the intercept X C=-1.152 value with 95% credible interval between -1.674 and -0.629. The coeficient for Population is 0.000
+
+***We can focus on the intercept β̂ 0=-1.15 2va
+
+***We can focus on the intercept β̂ 0=-1.152value wit 95% credible interval (d32ff2, -0.028
+We see the intercept β̂ 0= -0.323 with a 95% credible interval equal to (-0.621, -0.028), and the coefficient of smoking is β̂ 1= 1.156 with a 95% credible interval equal to (-0.081, 2.384). We can plot the posterior distribution of the smoking coefficient. We do this by calculating a smoothing of the marginal distribution of the coefficient with inla.smarginal() and then plot it with ggplot() of the ggplot2 package.***
+
+
+
+```{r results, message=FALSE, echo=F}
+summary(rese)
+```
+
+ddddgtgtff  
+
+
 ***Extraction of the posterior information***
+
 
 ```{r}
 library(faraway)
@@ -292,7 +335,8 @@ bri.fixed.plot(rese)
 ```
 
 
-```{r results, message=FALSE, echo=F}
+
+```{r results_2, message=FALSE, echo=F}
 #names(inla.models()$likelihood)
 ###results
 #summary(rese)
@@ -305,7 +349,8 @@ ggplot(marginale, aes(x = x, y = y)) + geom_line() + labs(x = expression(beta[1]
 ```
 
 
-```{r results_2, message=FALSE, echo=F}
+
+```{r results_3, message=FALSE, echo=F}
 ###add results to map
 head(rese$summary.fitted.values)
 
@@ -349,4 +394,13 @@ What I learned
 General comment
 
   - 
+  
+### Doubts
+
+- do i need ecpected values
+- is normal to get intercept 0
+- what do i get with the mean if it is not the risk
+
+  
+  
 
