@@ -58,6 +58,10 @@ data("nz")
 head(nz)
 str(nz)
 ?nz
+
+#https://www.ehinz.ac.nz/indicators/uv-exposure/melanoma/
+cases <- read.csv("./new-cancer-registrations-2017-data-files-dec19/cancer.csv", sep = ",")
+nz$cases <- cases$cases
 ```
 
 ```{r statistical_description, echo = F}
@@ -100,7 +104,7 @@ b <- nz %>%
                     scale = 0.3, 
                     slab_size = NA)
 c <- nz %>%
-  ggplot(aes(x=Land_area, y=Island, fill=Island))+
+  ggplot(aes(x=cases, y=Island, fill=Island))+
   stat_slab(aes(thickness = stat(pdf*n)), 
                 scale = 0.3) +
   stat_dotsinterval(side = "bottom", 
@@ -133,9 +137,6 @@ nz$Island <- as.factor(nz$Island)
 ##https://rdrr.io/cran/SpatialEpi/src/R/expected.R
 nz$sex <- ifelse(nz$Sex_ratio == 1, 'same', ifelse(nz$Sex_ratio > 1, 'female', "male"))
 nz$Population <- as.integer(nz$Population)
-#https://www.ehinz.ac.nz/indicators/uv-exposure/melanoma/
-cases <- read.csv("./new-cancer-registrations-2017-data-files-dec19/cancer.csv", sep = ",")
-nz$cases <- cases$cases
 
 ###expected cases
 ##area: name of the area
@@ -144,7 +145,6 @@ nz$cases <- cases$cases
 ##I want it to depend on
 ##population in each 
 ##SMIR in each area
-#nz$RMISR <- sum(nz$Median_income[nz$sex == "male"]) / sum(nz$Median_income[nz$sex == "female"])
 
 ```
 
@@ -158,9 +158,9 @@ nz$Median_income <- as.numeric(nz$Median_income)
 nz$Sex_ratio <- as.numeric(nz$Sex_ratio)
 nz$Land_area <- as.numeric(nz$Land_area)
 nz$cases <- as.numeric(nz$cases)
-b<- nz[,3:6]
+b<- nz[,3:6] 
+b$cases <- nz$cases
 b$geom <- NULL
-
 chart.Correlation(b, histogram = TRUE, method = "pearson")
 ```
 
@@ -174,7 +174,7 @@ nz$e <- expected(population = nz$Population, cases = nz$cases, n.strata = 4)
 ```
 
 ```{r statistical_description_5, echo=F}
-nz$SMIR <- nz$Median_income / nz$e
+nz$SMR <- nz$cases / nz$e
 ```
 
 
@@ -208,13 +208,13 @@ class(map_spdf)
 **Let's focus on the Median_income, We can see Welington county in the North is the one with the highest income. In general the south has more heterogeneous income**
 
 
-```{r SMIR, message=FALSE, echo=F}
-###Mapping SMIR
-#le <- leaflet(nz_region) %>% addTiles()
-#pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$SMIR)
+```{r SMR, message=FALSE, echo=F}
+###Mapping SMR
+le <- leaflet(nz_region) %>% addTiles()
+pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$SMR)
 
-#le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(SMIR), fillOpacity = 0.5) %>%
-  #leaflet::addLegend(pal = pale, values = ~SMIR, opacity = 0.5, title = "SMIR", position = "bottomright")
+le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(SMR), fillOpacity = 0.5) %>%
+  leaflet::addLegend(pal = pale, values = ~SMR, opacity = 0.5, title = "SMR", position = "bottomright")
 ```
 
 
@@ -370,7 +370,7 @@ pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$RR)
 labels <- sprintf("<strong> %s </strong> <br/> Observed: %s <br/> Expected: %s <br/>
                   Smokers proportion: %s <br/>SMR: %s <br/>RR: %s (%s, %s)",
                   nz_region$Name, nz_region$Median_income,  round(nz_region$e, 2),  
-                  nz_region$Sex_ratio, round(nz_region$SMIR, 2),
+                  nz_region$Sex_ratio, round(nz_region$SMR, 2),
                   round(nz_region$RR, 2), round(nz_region$LL, 2), round(nz_region$UL, 2)) %>%
   lapply(htmltools::HTML)
 
