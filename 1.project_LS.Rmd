@@ -43,15 +43,15 @@ library(PerformanceAnalytics)
 
 ### Introduction
 
-Aeral data
+**When we are working with a fixed domain which is divided in a finite number or sub regions where we have aggregated data, we can say we are working with Aeral data. This type pf data is presented as attributes of fixed polygonal areas, this areas doesn't need to be regular shaped. We can apply statistical methods to extract attributes and analyze then in space.**
 
-NZ data
 
-STAT394 course, INLA modelling
+**As part of the STAT394 course, in this project we are going to focus on nz (spData), where we have regions in New Zealand and as part of the course, we are going to model the data using INLA.**
+
 
 ### Data
 
-Statistical description of the data
+**Brief description of the dataset, we can see it is a sf object**
 
 ```{r data, include=FALSE}
 data("nz")
@@ -67,22 +67,22 @@ names(nz)
 
 **The dataset is "sf" class and it contains 16 observations and 7 variables. The followings:**
 
-**- Name: The county name**
+***- Name: The county name***
 
-**- Island: North or Shout location of the county**
+***- Island: North or Shout location of the county***
 
-**- Land_area: The area of each county**
+***- Land_area: The area of each county***
 
-**- Population: The total population of each county**
+***- Population: The total population of each county***
 
-**- Median_income: Median income of the county**
+***- Median_income: Median income of the county***
 
-**- Sex_ratio: Ratio in each of the counties**
+***- Sex_ratio: Ratio in each of the counties***
 
-**- Geom: The variable with the spatial information**
+***- Geom: The variable with the spatial information***
 
 
-**In our case, we are going to focus on the median income and try to see the dependence of it with the population in each county. In the next plots we can observe how are our variables distributed. For the population, we can see almost all the points are bellow 500 000. We have a pick in the South with more counties with low population, the north counties are more homogeneous. If we focus on the Median_income, the South shows most of the point between 25 000 and 30 000. In the north, the range of values is larger. Even though, the south counties show us more homogeneus distribution of the Land_area than the North.**
+**In our case, we are going to focus on the median income and try to see the dependence of it with the population in each county. In the next plots we can observe how are our variables distributed. For the population, we can see almost all the points are bellow 500 000. We have a pick in the South with more counties with low population, the north counties are more homogeneous. If we focus on the Median_income, the South shows most of the point between 25 000 and 30 000. In the north, the range of values is larger. Even though, the south counties show us more homogeneous distribution of the Land_area than the North.**
 
 ```{r statistical_description_1, echo=F}
 a <- nz %>%
@@ -133,6 +133,9 @@ nz$Island <- as.factor(nz$Island)
 ##https://rdrr.io/cran/SpatialEpi/src/R/expected.R
 nz$sex <- ifelse(nz$Sex_ratio == 1, 'same', ifelse(nz$Sex_ratio > 1, 'female', "male"))
 nz$Population <- as.integer(nz$Population)
+#https://www.ehinz.ac.nz/indicators/uv-exposure/melanoma/
+cases <- read.csv("./new-cancer-registrations-2017-data-files-dec19/cancer.csv", sep = ",")
+nz$cases <- cases$cases
 
 ###expected cases
 ##area: name of the area
@@ -145,13 +148,16 @@ nz$Population <- as.integer(nz$Population)
 
 ```
 
+
 **In the next plot we check the correlation between the principal variables. There is a correlation between the Land_area and the Sex_ratio. When Land_area values is decreasing, the Sex_ratio is also decreasing, positive correlation. Overall, we are not seeing a bit correlation values between variables. In this work we are going to focus on the Median_income as a response variable, we can see a 0.44 correlation score between the Median_income and Population variables.**
+
 
 ```{r statistical_description_2, echo=F, message=FALSE, warning=FALSE}
 nz$Population <- as.numeric(nz$Population)
 nz$Median_income <- as.numeric(nz$Median_income)
 nz$Sex_ratio <- as.numeric(nz$Sex_ratio)
 nz$Land_area <- as.numeric(nz$Land_area)
+nz$cases <- as.numeric(nz$cases)
 b<- nz[,3:6]
 b$geom <- NULL
 
@@ -164,7 +170,7 @@ chart.Correlation(b, histogram = TRUE, method = "pearson")
 
 ```{r statistical_description_4, echo=T}
 #Expected 
-nz$e <- expected(population = nz$Population, cases = nz$Median_income, n.strata = 4)
+nz$e <- expected(population = nz$Population, cases = nz$cases, n.strata = 4)
 ```
 
 ```{r statistical_description_5, echo=F}
@@ -281,7 +287,7 @@ nz_region$re_v <- 1:nrow(nz_region@data)
 ***Define the formula***
 
 ```{r modelling_3, message=FALSE, echo=T}
-formula <- Median_income ~ Population + 
+formula <- cases ~ Sex_ratio + 
   f(re_u, model = "besag", graph = ge, scale.model = TRUE) + 
   f(re_v, model = "iid")
 ```
@@ -342,7 +348,7 @@ bri.fixed.plot(rese)
 #summary(rese)
 rese$summary.fitted.values
 
-marginale <- inla.smarginal(rese$marginals.fixed$Population)
+marginale <- inla.smarginal(rese$marginals.fixed$Sex_ratio)
 marginale <- data.frame(marginale)
 ggplot(marginale, aes(x = x, y = y)) + geom_line() + labs(x = expression(beta[1]), y = "Density") +
   geom_vline(xintercept = 0, col = "blue") + theme_bw()
@@ -379,11 +385,14 @@ leaflet(nz_region) %>% addTiles() %>%
 
 ### Discussion section
 
+
 What can I do better
 
   - More variables to check
   - Low number of data points to proper work
   
+  
+**With this project I learned how to download, manipulate and analize areal data. I work with different packages to do so,  **
 What I learned
 
   - Manipulate spatial data
