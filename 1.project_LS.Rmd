@@ -1,10 +1,12 @@
 ---
 title: 'Project 1: Areal data analysis'
-author: "Laura Sudupe. email: laura.medinilla@kaust.eu.sa"
+author: 'Laura Sudupe. email: laura.medinilla@kaust.eu.sa'
 date: "10/1/2022"
-geometry: margin=2cm
+output:
+  pdf_document: default
+  html_document: default
 fontsize: 12pt
-output: html_document
+geometry: margin=2cm
 ---
 
 
@@ -43,15 +45,15 @@ library(PerformanceAnalytics)
 
 ### Introduction
 
-**When we are working with a fixed domain which is divided in a finite number or sub regions where we have aggregated data, we can say we are working with Aeral data. This type pf data is presented as attributes of fixed polygonal areas, this areas doesn't need to be regular shaped. We can apply statistical methods to extract attributes and analyze then in space.**
+When we are working with a fixed domain which is divided in a finite number or sub regions where we have aggregated data, we can say we are working with Aeral data. This type pf data is presented as attributes of fixed polygonal areas, this areas doesn't need to be regular shaped. We can apply statistical methods to extract attributes and analyze then in space.
 
 
-**As part of the STAT394 course, in this project we are going to focus on nz (spData), where we have regions in New Zealand and as part of the course, we are going to model the data using INLA.**
+As part of the STAT394 course, in this project we are going to focus on nz (spData), where we have regions in New Zealand and as part of the course, we are going to model the data using INLA.
 
 
 ### Data
 
-**Brief description of the dataset, we can see it is a sf object**
+Brief description of the dataset, we can see it is a sf object
 
 ```{r data, include=FALSE}
 data("nz")
@@ -69,24 +71,24 @@ class(nz)
 names(nz)
 ```
 
-**The dataset is "sf" class and it contains 16 observations and 7 variables. The followings:**
+The dataset is "sf" class and it contains 16 observations and 7 variables. The followings:
 
-***- Name: The county name***
+*- Name: The county name*
 
-***- Island: North or Shout location of the county***
+*- Island: North or Shout location of the county*
 
-***- Land_area: The area of each county***
+*- Land_area: The area of each county*
 
-***- Population: The total population of each county***
+*- Population: The total population of each county*
 
-***- Median_income: Median income of the county***
+*- Median_income: Median income of the county*
 
-***- Sex_ratio: Ratio in each of the counties***
+*- Sex_ratio: Ratio in each of the counties*
 
-***- Geom: The variable with the spatial information***
+*- Geom: The variable with the spatial information*
 
 
-**In our case, we are going to focus on the median income and try to see the dependence of it with the population in each county. In the next plots we can observe how are our variables distributed. For the population, we can see almost all the points are bellow 500 000. We have a pick in the South with more counties with low population, the north counties are more homogeneous. If we focus on the Median_income, the South shows most of the point between 25 000 and 30 000. In the north, the range of values is larger. Even though, the south counties show us more homogeneous distribution of the Land_area than the North.**
+In our case, we are going to focus on the cancer cases and try to see the dependence of it with the sex_Ratio in each county. In the next plots we can observe how are our variables distributed. For the population, we can see almost all the points are bellow 500 000. We have a pick in the South with more counties with low population, the north counties are more homogeneous. If we focus on the Median_income, the South shows most of the point between 25 000 and 30 000. In the north, the range of values is larger. Even though, the south counties show us more homogeneous distribution of the Land_area than the North. Related to the cases, the south is more heterogeneously distributed than the north.
 
 ```{r statistical_description_1, echo=F}
 a <- nz %>%
@@ -123,13 +125,13 @@ grid.arrange(a, b, c, d,  ncol=2)
 ```
 
 
-**In this data we have the sex_ratio. This variable give us the ratio of female to males in a population, it tends to be 1:1. In our case, we are going to transform the data**
+In this data we have the sex_ratio. This variable give us the ratio of female to males in a population, it tends to be 1:1. In our case, we are going to transform the data
 
-**-Sex_ratio = 1, then "same"**
+*-Sex_ratio = 1, then "same"*
 
-**-Sex_ratio > 1, then "female"**
+*-Sex_ratio > 1, then "female"*
 
-**-Sex_ratio < 1, then "male"**
+*-Sex_ratio < 1, then "male"*
 
 
 ```{r statistical_description_3, echo=F, message=FALSE, warning=FALSE}
@@ -149,7 +151,7 @@ nz$Population <- as.integer(nz$Population)
 ```
 
 
-**In the next plot we check the correlation between the principal variables. There is a correlation between the Land_area and the Sex_ratio. When Land_area values is decreasing, the Sex_ratio is also decreasing, positive correlation. Overall, we are not seeing a bit correlation values between variables. In this work we are going to focus on the Median_income as a response variable, we can see a 0.44 correlation score between the Median_income and Population variables.**
+In the next plot we check the correlation between the principal variables. There is a correlation between the Land_area and the Sex_ratio. When Land_area values is decreasing, the Sex_ratio is also decreasing, positive correlation. Overall, we are not seeing a bit correlation values between variables. In this work we are going to focus on the Median_income as a response variable, we can see a 0.44 correlation score between the Median_income and Population variables.
 
 
 ```{r statistical_description_2, echo=F, message=FALSE, warning=FALSE}
@@ -166,7 +168,7 @@ chart.Correlation(b, histogram = TRUE, method = "pearson")
 
 
 
-**Along with the observed values, we want to know the expected ones. For this, we use the expected() function of the SpatialEpi package. For this analysis, we want to calculate the expected median_income. We divided the data between sex and hemisphere**
+Along with the observed values, we want to know the expected ones. For this, we use the expected() function of the SpatialEpi package. For this analysis, we want to calculate the expected median_income. We divided the data between sex and hemisphere
 
 ```{r statistical_description_4, echo=T}
 #Expected 
@@ -178,7 +180,7 @@ nz$SMR <- nz$cases / nz$e
 ```
 
 
-**Let's see our final variables in a spatial plot. We can see that only in one of the counties the ratio between female and males is higher for females**
+Let's see our final variables in a spatial plot. We can see that only in one of the counties the ratio between female and males is higher for females
 
 
 ```{r summary, message=FALSE, echo=F}
@@ -190,7 +192,7 @@ if (requireNamespace("sf", quietly = TRUE)) {
 ```
 
 
-**In our case, the map does not have the Coordinate Reference System (CRS) data. For this reason, we need to add it by ourself. Also, we need to convert the data to SpatialPolygonsDataFrame**
+In our case, the map does not have the Coordinate Reference System (CRS) data. For this reason, we need to add it by ourself. Also, we need to convert the data to SpatialPolygonsDataFrame
 
 
 ```{r spatial, message=FALSE, echo=T}
@@ -205,7 +207,7 @@ class(map_spdf)
 
 ### Visual plots of the data
 
-**Let's focus on the Median_income, We can see Welington county in the North is the one with the highest income. In general the south has more heterogeneous income**
+Let's focus on the SMR, We can see Auckland and Bay of plenty counties in the North are the ones with highest values. In the south, Otago has high value of SMR also.
 
 
 ```{r SMR, message=FALSE, echo=F}
@@ -217,48 +219,36 @@ le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(SMR), fillOpaci
   leaflet::addLegend(pal = pale, values = ~SMR, opacity = 0.5, title = "SMR", position = "bottomright")
 ```
 
+Related to the sex ratio, female/male relation. It is obvious in the south we have higher ratio than in the north. The west coast has the highest value compared with the other counties. Is also the only county where the ratio is higher than 1.
 
-
-```{r Median_income, message=FALSE, echo=F}
+```{r Sex_ratio, message=FALSE, echo=F}
 ###Mapping median income
 le <- leaflet(nz_region) %>% addTiles()
-pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Median_income)
+  pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Sex_ratio)
 
-le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Median_income), fillOpacity = 0.5) %>%
-  leaflet::addLegend(pal = pale, values = ~Median_income, opacity = 0.5, title = "Median_income", position = "bottomright")
+le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Sex_ratio), fillOpacity = 0.5) %>%
+  leaflet::addLegend(pal = pale, values = ~Sex_ratio, opacity = 0.5, title = "Sex_ratio", position = "bottomright")
 ```
 
-**Related to the Population, Auckland has the highest population values. In general, we can see a heterogeneus landscape in the map.**
 
-
-```{r Population, message=FALSE, echo=F}
-###Mapping Population
-le <- leaflet(nz_region) %>% addTiles()
-pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$Population)
-
-le %>% addPolygons(color = "grey", weight = 1, fillColor = ~pale(Population), fillOpacity = 0.5) %>%
-  leaflet::addLegend(pal = pale, values = ~Population, opacity = 0.5, title = "Population", position = "bottomright")
-```
 
 ### Analyses
 
-***For this proyect, we are going to use <a href = "https://www.r-inla.org/">INLA package</a> to model the data. This package is used to do approximate Bayesian inference for Latent Gaussian Models***
+For this proyect, we are going to use <a href = "https://www.r-inla.org/">INLA package</a> to model the data. This package is used to do approximate Bayesian inference for Latent Gaussian Models
 
-***In our case, Yi is going to be the observed Median_income and Ei the expected one.  ***
+In our case, $Yi$ is going to be the observed cases by county and $Ei$ the expected cases. $θi$ is the relative risk for county i=1,…,n. We are going to use Poisson model:
 
-Let Yi and Ei be the observed and expected number of disesase cases, respectively, and let θi be the relative risk for county i=1,…,n. The model is specified as follows:
+$$Yi|θi \sim Poisson(Eixθi), i=1, ... , n, $$
 
-Yi|θi∼Poisson(Ei×θi), i=1,…,n,
+$$log(θi)=β0+β1×SexRatioi+ui+vi $$
 
-log(θi)=β0+β1×smokingi+ui+vi.
-
-β0 is the intercept,
-β1 is the coefficient of the smokers proportion covariate,
-ui is a structured spatial effect, ui|u−i∼N(u¯δi,1τunδi) (Conditionally autoregressive model (CAR)),
-vi is an unstructured spatial effect, vi∼N(0,1/τv).
+- $β0$ is the intercept,
+- $β1$ is the coefficient of the sex_ratio  covariate,
+- $ui$ is a structured spatial effect,
+- $vi$ is an unstructured spatial effect, vi∼N(0,1/τv).
 
 
-***We need to define some parameters before running the model. First, we need to created a neighborhood matrix where we define the spatial random effect. With poly2nb() function we create a neighbors list based on the areas surrounding the boundaries. For each area, we have the indices of its neighbors. After this, with nb2INLA() we transform the list in a file representing the matrix. R-INLA package need this file to work with to be able to specify the spatial random effect.***
+We need to define some parameters before running the model. First, we need to created a neighborhood matrix where we define the spatial random effect. With poly2nb() function we create a neighbors list based on the areas surrounding the boundaries. For each area, we have the indices of its neighbors. After this, with nb2INLA() we transform the list in a file representing the matrix. R-INLA package need this file to work with to be able to specify the spatial random effect.
 
 
 ```{r modelling_1, message=FALSE, echo=F, include=FALSE}
@@ -272,7 +262,7 @@ ge <- inla.read.graph(filename = "nz_region.adj")
 
 
 
-***For the model, we need to create two variables, where we are going to have the random effect values. Ui to model the spatial residual variation, and vi to model unstructured noise.***
+For the model, we need to create two variables, where we are going to have the random effect values. $ui$ to model the spatial residual variation, and $vi$ to model unstructured noise.
 
 
 
@@ -284,7 +274,7 @@ nz_region$re_v <- 1:nrow(nz_region@data)
 ```
 
 
-***Define the formula***
+Define the formula
 
 ```{r modelling_3, message=FALSE, echo=T}
 formula <- cases ~ Sex_ratio + 
@@ -293,8 +283,7 @@ formula <- cases ~ Sex_ratio +
 ```
 
 
-
-***Let's fit the model***
+Let's fit the model
 
 ```{r modelling_4, message=FALSE, echo=T}
 #https://groups.google.com/g/r-inla-discussion-group/c/EPTiPRE7jAM?pli=1 ERROR
@@ -309,26 +298,15 @@ rese <- inla(formula, family = "poisson", data = nz_region@data,
 
 ### Results and Interpretation
 
-We can focus on the intercept X C=-1.152 value with 95% credible interval between -1.674 and -0.629. The coeficient for Population is 0.000
-
-***We can focus on the intercept β̂ 0=-1.15 2va
-
-***We can focus on the intercept β̂ 0=-1.152value wit 95% credible interval (d32ff2, -0.028
-We see the intercept β̂ 0= -0.323 with a 95% credible interval equal to (-0.621, -0.028), and the coefficient of smoking is β̂ 1= 1.156 with a 95% credible interval equal to (-0.081, 2.384). We can plot the posterior distribution of the smoking coefficient. We do this by calculating a smoothing of the marginal distribution of the coefficient with inla.smarginal() and then plot it with ggplot() of the ggplot2 package.***
-
-
+We can focus on the intercept  $β0$= 0.952 value with 95% credible interval between -22.460 and 24.263. The coeficient for Population is $β̂ 1$ -2.4.
 
 ```{r results, message=FALSE, echo=F}
-summary(rese)
+head(summary(rese))
 ```
 
-ddddgtgtff  
 
 
-***Extraction of the posterior information***
-
-
-```{r}
+```{r results_1, message=FALSE, echo=F}
 library(faraway)
 library(gridExtra)
 #http://julianfaraway.github.io/brinla/examples/chicago.html
@@ -340,12 +318,12 @@ bri.hyperpar.plot(rese)
 bri.fixed.plot(rese)
 ```
 
+Let's see the posterior distribution of the sex_ratio distribution. We do this by calculating a smoothing of the marginal distribution of the coefficient with inla.smarginal() and then plot it with ggplot() of the ggplot2 package.
 
+In this plot we can see if the parameter is different to 0. For the sex_ratio, we can see the posterior density is away from zero
 
 ```{r results_2, message=FALSE, echo=F}
-#names(inla.models()$likelihood)
 ###results
-#summary(rese)
 rese$summary.fitted.values
 
 marginale <- inla.smarginal(rese$marginals.fixed$Sex_ratio)
@@ -354,11 +332,13 @@ ggplot(marginale, aes(x = x, y = y)) + geom_line() + labs(x = expression(beta[1]
   geom_vline(xintercept = 0, col = "blue") + theme_bw()
 ```
 
+We can get the risk estimation and the uncertainty for each of the areas. This information is given to us like the mean posterior and the 95% credible intervals of $θi$, i=1,…,n which are in res$summary.fitted.values.
 
+So, the mean is the estimation of the relative risk, and the quantiles are the lower and upper limits of the 95% credible intervals of the risks. If we plot this results, we can see Auckland and Bay of plenty counties has higher relative risk values than the other counties in the north. From the south, Otago has the highest relative risk.
 
 ```{r results_3, message=FALSE, echo=F}
 ###add results to map
-head(rese$summary.fitted.values)
+#head(rese$summary.fitted.values)
 
 nz_region$RR <- rese$summary.fitted.values[, "mean"]
 nz_region$LL <- rese$summary.fitted.values[, "0.025quant"]
@@ -368,7 +348,7 @@ nz_region$UL <- rese$summary.fitted.values[, "0.975quant"]
 pale <- colorNumeric(palette = "YlOrRd", domain = nz_region$RR)
 
 labels <- sprintf("<strong> %s </strong> <br/> Observed: %s <br/> Expected: %s <br/>
-                  Smokers proportion: %s <br/>SMR: %s <br/>RR: %s (%s, %s)",
+                  Sex ratio: %s <br/>SMR: %s <br/>RR: %s (%s, %s)",
                   nz_region$Name, nz_region$Median_income,  round(nz_region$e, 2),  
                   nz_region$Sex_ratio, round(nz_region$SMR, 2),
                   round(nz_region$RR, 2), round(nz_region$LL, 2), round(nz_region$UL, 2)) %>%
@@ -382,6 +362,9 @@ leaflet(nz_region) %>% addTiles() %>%
                                           textsize = "15px", direction = "auto")) %>%
   leaflet::addLegend(pal = pale, values = ~RR, opacity = 0.5, title = "RR", position = "bottomright")
 ```
+
+
+
 
 ### Discussion section
 
@@ -406,9 +389,9 @@ General comment
   
 ### Doubts
 
-- do i need ecpected values
-- is normal to get intercept 0
-- what do i get with the mean if it is not the risk
+- am I defining the prior?
+- is this enough?
+- point me to better explain the results
 
   
   
