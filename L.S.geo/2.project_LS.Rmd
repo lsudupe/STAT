@@ -1,0 +1,327 @@
+---
+title: 'Project 2: Geospatial data analysis'
+author: 'Laura Sudupe. email: laura.medinilla@kaust.eu.sa'
+date: "01/11/2022"
+output:
+  pdf_document: default
+  html_document: default
+fontsize: 12pt
+geometry: margin=2cm
+always_allow_html: yes
+
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include =FALSE}
+library(raster)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(INLA)
+library(viridis)
+library(dplyr)
+```
+
+
+# Poland geospatial data analysis
+
+
+### Abstract
+
+**This project will be focused on analyzing Poland geospatial data using Rstudio. The project is the second one of the three we need to prepare for the <a href = "https://www.paulamoraga.com/book-gds/index.html">STAT394 course</a>. In the first section we are going to describe the data and briefly explain geospatial data type. Next, we will focus on preparing the data for the statistical modelling. After this, we are going to go through the results, understanding the meaning and finally a short discussion of the project.**
+
+```{r echo=F, warning= F, message=F}
+#opts_chunk$set(message = FALSE, warning = FALSE, error = FALSE, tidy = FALSE, cache = FALSE,results = 'asis' )
+```
+
+
+### Introduction
+
+If we are dealing with data which has spatial continuity and have been collected at specific places we have geospatial data. In our case, this data represents the level of a pollutant, a particulate matter < 10 micrometers aerosol measured in different location in Poland during 2019. This particles are suspended in the air and has less than 10 micrometers of diameter. Some particles can get into the lungs and also in the bloodstream. The data had been downloaded from <a href = "http://aidef.apps.eea.europa.eu/?source=%7B%22query%22%3A%7B%22bool%22%3A%7B%22must%22%3A%5B%7B%22term%22%3A%7B%22Pollutant%22%3A%22Particulate%20matter%20%3C%2010%20%C2%B5m%20(aerosol)%22%7D%7D%2C%7B%22query_string%22%3A%7B%22query%22%3A%22Poland%22%2C%22default_operator%22%3A%22OR%22%2C%22analyze_wildcard%22%3Atrue%7D%7D%5D%7D%7D%2C%22display_type%22%3A%22tabular%22%7D">European Environment Agency (EEA)</a>.
+
+The geospatial data of our pollutant is measured in a finite locations and we want to infer the characteristics of the spatial process such as the mean and variability of the process. This features are useful when predicting the process at no measured locations. We are going to model the data using *R-INLA*. 
+
+We are going to use stochastic partial differential equation approach (SPDE) implemented in *R-INLA*. We are going to fit a spatial model and predict the variable of interest in no measure locations.
+
+
+
+### Data
+
+Poland map was obtained from the **raster** package. We use **GADM**, the global administrative boundaries and level 0. In our case, we do not want to have more subdivisions in the country. 
+
+We need to transform the object with **UTM** projection. For this, we use the ESPG code of Poland, 25830.
+
+
+```{r data, echo = F, warning=FALSE}
+m <- getData(name = "GADM", country = "Poland", level = 0)
+#plot(m1)
+
+###CREO QUE NO NECESITO ESTO
+m <- m %>%
+  st_as_sf() %>%
+  st_cast("POLYGON") %>%
+  mutate(area = st_area(.)) %>%
+  arrange(desc(area))# %>%
+ # slice(1)
+
+m <- m %>% st_transform(2180)
+#ggplot(mi) + geom_sf() + theme_bw() + coord_sf(datum = st_crs(mi))
+```
+
+The European Environment Agency provide air pollution measurements of the different European countries. For this proyect we use 2019 particulate matter (PM10) measurements. Data distribution on the 2019 year on Poland. After downloaded the data, we subset and filter it to obtain a normal distributed dataset to work with. 
+
+We keep the variables indicating the day/year, monitoring station id, longitude, latitude and pollutant values.
+
+```{r data_1, echo = F}
+d <- read.csv("./data_p.csv")
+d <- d[, c(
+  "ReportingYear", "StationLocalId",
+  "SamplingPoint_Longitude",
+  "SamplingPoint_Latitude",
+  "AQValue"
+)]
+names(d) <- c("year", "id", "long", "lat", "value")
+d <- d[d$value >= 10, ]
+d <- d[d$value <= 32,]
+d <- d[!grepl("2013", d[,1]),]
+d <- d[!grepl("2014", d[,1]),]
+d <- d[!grepl("2015", d[,1]),]
+d <- d[!grepl("2016", d[,1]),]
+d <- d[!grepl("2017", d[,1]),]
+d <- d[!grepl("2018", d[,1]),]
+
+#####
+p <- st_as_sf(data.frame(long = d$long, lat = d$lat),
+               coords = c("long", "lat"))
+
+st_crs(p) <- st_crs(4326)
+p <- p %>% st_transform(2180)
+
+d[, c("x", "y")] <- st_coordinates(p)
+
+ind <- st_intersects(m, p)
+d <- d[ind[[1]], ]
+```
+
+```{r figure_1, echo = F,fig.cap="\\label{fig:figure_1}map projection of the measurements points in Poland"}
+ggplot(m) + geom_sf() + coord_sf(datum = st_crs(m)) +
+  geom_point(data = d, aes(x = x, y = y)) + theme_bw()
+```
+
+
+```{r figure_2, echo = F,fig.cap="\\label{fig:figure_2}histogram of the PM10 particles in 2019"}
+ggplot(d) +
+  geom_histogram(mapping = aes(x = value)) +
+  facet_wrap(~year, ncol = 1) +
+  theme_bw()
+```
+
+We can see in Figure 2 how the data has a normal distribution.
+
+
+```{r figure_3, echo = F,fig.cap="\\label{fig:figure_2}PM10 particle values in Poland"}
+ggplot(m) + geom_sf() + coord_sf(datum = NA) +
+  geom_point(
+    data = d, aes(x = x, y = y, color = value),
+    size = 2
+  ) +
+  labs(x = "", y = "") +
+  scale_color_viridis() +
+  facet_wrap(~year) +
+  theme_bw()
+```
+
+We can see in Figure 3 the values of the pollutant in each monitoring station over time.
+
+
+
+### Analyses
+
+## Modelling
+
+For this proyect, we are going to use <a href = "https://www.r-inla.org/">INLA package</a> to model the data. This package is used to do approximate Bayesian inference for Latent Gaussian Models
+
+In our case, $Yi$ is going to be the *observed cases* by county and $Ei$ the *expected cases*. $0i$ is the *relative risk* for county i=1,…,n. We are going to use Poisson model:
+
+$$Yi|0i \sim Poisson(Eix0i), i=1, ... , n, $$
+
+$$log(0i)=B0+B1xSexRatioi+ui+vi $$
+
+- $B0$ is the intercept,
+- $B1$ is the coefficient of the sex_ratio  covariate,
+- $ui$ is a structured spatial effect,
+- $vi$ is an unstructured spatial effect.
+
+
+We need to define some parameters before running the model. First, we need to created a *neighborhood matrix* where we define the spatial random effect. With poly2nb() function we create a neighbors list based on the areas surrounding the boundaries. For each area, we have the indices of its neighbors. After this, with nb2INLA() we transform the list in a file representing the matrix. R-INLA package need this file to work with to be able to specify the spatial random effect.
+
+Mesh creation 
+
+```{r figure_4, echo = F,fig.cap="\\label{fig:figure_2}Poland map mesh"}
+coo <- cbind(d$x, d$y)
+bnd <- inla.nonconvex.hull(st_coordinates(m)[, 1:2])
+mesh <- inla.mesh.2d(
+  loc = coo, boundary = bnd,
+  max.edge = c(100000, 200000), cutoff = 500
+)
+mesh$n
+plot(mesh)
+points(coo, col = "red")
+```
+
+
+
+
+
+```{r code, echo=F}
+#Building the SPDE model on the mesh
+spde <- inla.spde2.pcmatern(
+  mesh = mesh, alpha = 2, constr = TRUE,
+  prior.range = c(10000, 0.01), # P(range < 10000) = 0.01
+  prior.sigma = c(3, 0.01) # P(sigma > 3) = 0.01
+)
+
+#10.3.4 Index set
+timesn <- length(unique(d$year))
+indexs <- inla.spde.make.index("s",
+                               n.spde = spde$n.spde
+                               # ,n.group = timesn
+)
+
+#10.3.5 Projection matrix
+# group <- d$year - min(d$year) + 1
+A <- inla.spde.make.A(mesh = mesh, loc = coo)
+
+#10.3.6 Prediction data
+bb <- st_bbox(m)
+x <- seq(bb$xmin - 1, bb$xmax + 1, length.out = 50)
+y <- seq(bb$ymin - 1, bb$ymax + 1, length.out = 50)
+dp <- as.matrix(expand.grid(x, y))
+#plot(dp, asp = 1)
+
+p <- st_as_sf(data.frame(x = dp[, 1], y = dp[, 2]),
+              coords = c("x", "y")
+)
+st_crs(p) <- st_crs(2180)
+ind <- st_intersects(m, p)
+dp <- dp[ind[[1]], ]
+#plot(dp, asp = 1)
+
+coop <- dp[, 1:2]
+Ap <- inla.spde.make.A(mesh = mesh, loc = coop)
+
+```
+
+
+
+```{r stack, echo=F, message=FALSE, warning=FALSE, include=FALSE}
+#10.3.7 Stack with data for estimation and prediction
+stk.e <- inla.stack(
+  tag = "est",
+  data = list(y = d$value),
+  A = list(1, A),
+  effects = list(data.frame(b0 = rep(1, nrow(d))), s = indexs$s )
+)
+
+stk.p <- inla.stack(
+  tag = "pred",
+  data = list(y = NA),
+  A = list(1, Ap),
+  effects = list(data.frame(b0 = rep(1, nrow(dp))), s = indexs$s )
+)
+
+stk.full <- inla.stack(stk.e, stk.p)
+```
+
+
+
+
+
+```{r formula, echo=F, message=FALSE}
+#10.3.8 Model formula
+rprior <- list(theta = list(prior = "pccor1", param = c(0, 0.9)))
+formula <- y ~ 0 + b0 + f(s,
+                          model = spde
+                          
+)
+
+#10.3.9 inla() call
+#https://groups.google.com/g/r-inla-discussion-group/c/C8Ueyl1NaaE
+res <- inla(formula,
+            data = inla.stack.data(stk.full),
+            control.inla=list(cmin=0),
+            control.predictor = list(
+              compute = TRUE,
+              A = inla.stack.A(stk.full),
+              link = 1), verbose=TRUE)
+
+```
+
+
+### Results and Interpretation
+
+We can focus on the intercept  $B0$= 0.952 value with 95% credible interval between -22.460 and 24.263. The coefficient for sex_ratio is $B 1$ -2.4.
+
+```{r results, echo=F}
+#summary(res)
+index <- inla.stack.index(stack = stk.full, tag = "pred")$data
+pred_mean <- res$summary.fitted.values[index, "mean"]
+pred_ll <- res$summary.fitted.values[index, "0.025quant"]
+pred_ul <- res$summary.fitted.values[index, "0.975quant"]
+
+dpm <- rbind(
+  data.frame(
+    east = coop[, 1], north = coop[, 2],
+    value = pred_mean, variable = "pred_mean"
+  ),
+  data.frame(
+    east = coop[, 1], north = coop[, 2],
+    value = pred_ll, variable = "pred_ll"
+  ),
+  data.frame(
+    east = coop[, 1], north = coop[, 2],
+    value = pred_ul, variable = "pred_ul"
+  )
+)
+
+dpm$variable <- as.factor(dpm$variable)
+```
+
+Let's see the posterior distribution of the *sex_ratio*. We do this by calculating a smoothing of the marginal distribution of the coefficient with inla.smarginal().
+
+We can see that the distribution density is around 0. This means this variable is not influencing our response variable.
+
+```{r results_1, echo=F}
+ggplot(dpm) + geom_tile(aes(east, north, fill = value)) +
+  facet_wrap(~variable, nrow = 1) +
+  coord_fixed(ratio = 1) +
+  scale_fill_gradient(
+    name = "PM10",
+    low = "blue", high = "orange"
+  ) +
+  theme_bw()
+```
+
+
+We can get the *risk estimation* and the uncertainty for each of the areas. This information is given to us like the mean posterior and the 95% credible intervals of $0i$, i=1,…,n which are in res$summary.fitted.values.
+
+So, the mean is the estimation of the relative risk, and the quantiles are the lower and upper limits of the 95% credible intervals of the risks. If we plot this results, we can see Auckland and Bay of plenty counties has higher relative risk values than the other counties in the north. From the south, Ottago has the highest relative risk.
+
+
+
+### Discussion section
+
+In this work we study the influence of the *sex_Rati*o* in the cancer cases. We can see overall the variable is no influencing so much. We can focus our study in the *population* variable instead, we saw the correlation value was higher.
+The data has only 16 observations, we can focus on finding datasets with more values to work with
+
+With this project I learned how to download, manipulate and analyze areal data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and INLA for example.
+
+  
+
+  
+  
+
