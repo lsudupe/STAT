@@ -30,7 +30,7 @@ library(dplyr)
 # Poland geospatial data analysis
 
 
-### Abstract
+## Abstract
 
 **This project will be focused on analyzing Poland geospatial data using Rstudio. The project is the second one of the three we need to prepare for the <a href = "https://www.paulamoraga.com/book-gds/index.html">STAT394 course</a>. In the first section we are going to describe the data and briefly explain geospatial data type. Next, we will focus on preparing the data for the statistical modelling. After this, we are going to go through the results, understanding the meaning and finally a short discussion of the project.**
 
@@ -39,7 +39,7 @@ library(dplyr)
 ```
 
 
-### Introduction
+## Introduction
 
 If we are dealing with data which has spatial continuity and have been collected at specific places we have geospatial data. In our case, this data represents the level of a pollutant, a particulate matter < 10 micrometers aerosol measured in different location in Poland during 2019. This particles are suspended in the air and has less than 10 micrometers of diameter. Some particles can get into the lungs and also in the bloodstream. The data had been downloaded from <a href = "http://aidef.apps.eea.europa.eu/?source=%7B%22query%22%3A%7B%22bool%22%3A%7B%22must%22%3A%5B%7B%22term%22%3A%7B%22Pollutant%22%3A%22Particulate%20matter%20%3C%2010%20%C2%B5m%20(aerosol)%22%7D%7D%2C%7B%22query_string%22%3A%7B%22query%22%3A%22Poland%22%2C%22default_operator%22%3A%22OR%22%2C%22analyze_wildcard%22%3Atrue%7D%7D%5D%7D%7D%2C%22display_type%22%3A%22tabular%22%7D">European Environment Agency (EEA)</a>.
 
@@ -49,7 +49,7 @@ We are going to use stochastic partial differential equation approach (SPDE) imp
 
 
 
-### Data
+## Data
 
 Poland map was obtained from the **raster** package. We use **GADM**, the global administrative boundaries and level 0. In our case, we do not want to have more subdivisions in the country. 
 
@@ -75,6 +75,7 @@ m <- m %>% st_transform(2180)
 The European Environment Agency provide air pollution measurements of the different European countries. For this proyect we use 2019 particulate matter (PM10) measurements. Data distribution on the 2019 year on Poland. After downloaded the data, we subset and filter it to obtain a normal distributed dataset to work with. 
 
 We keep the variables indicating the day/year, monitoring station id, longitude, latitude and pollutant values.
+
 
 ```{r data_1, echo = F}
 d <- read.csv("./data_p.csv")
@@ -107,23 +108,26 @@ ind <- st_intersects(m, p)
 d <- d[ind[[1]], ]
 ```
 
-```{r figure_1, echo = F,fig.cap="\\label{fig:figure_1}map projection of the measurements points in Poland"}
+
+```{r figure_1, echo = F, fig.cap="\\label{fig:figure_1}map projection of the measurements points in Poland"}
+
 ggplot(m) + geom_sf() + coord_sf(datum = st_crs(m)) +
   geom_point(data = d, aes(x = x, y = y)) + theme_bw()
+
 ```
 
 
-```{r figure_2, echo = F,fig.cap="\\label{fig:figure_2}histogram of the PM10 particles in 2019"}
+```{r figure_2, echo = F, fig.cap="\\label{fig:figure_2}histogram of the PM10 particles in 2019"}
+
 ggplot(d) +
-  geom_histogram(mapping = aes(x = value)) +
+  geom_histogram(mapping = aes(x = value),bins=30) +
   facet_wrap(~year, ncol = 1) +
   theme_bw()
+
 ```
 
-We can see in Figure 2 how the data has a normal distribution.
+```{r figure_3, echo = F, fig.cap="\\label{fig:figure_2}PM10 particle values in Poland"}
 
-
-```{r figure_3, echo = F,fig.cap="\\label{fig:figure_2}PM10 particle values in Poland"}
 ggplot(m) + geom_sf() + coord_sf(datum = NA) +
   geom_point(
     data = d, aes(x = x, y = y, color = value),
@@ -133,35 +137,43 @@ ggplot(m) + geom_sf() + coord_sf(datum = NA) +
   scale_color_viridis() +
   facet_wrap(~year) +
   theme_bw()
+
 ```
 
-We can see in Figure 3 the values of the pollutant in each monitoring station over time.
+\newpage
 
+Figure 1 show us the different measurement points in Poland map proyection.
+We can see in Figure 2 how the data has a normal distribution. In Figure 3, the values of the pollutant in each monitoring station over time.
 
-
-### Analyses
 
 ## Modelling
 
-For this proyect, we are going to use <a href = "https://www.r-inla.org/">INLA package</a> to model the data. This package is used to do approximate Bayesian inference for Latent Gaussian Models
+We are going to specify a spatial model to predict PM10 and fit the model using **R-INLA**. 
 
-In our case, $Yi$ is going to be the *observed cases* by county and $Ei$ the *expected cases*. $0i$ is the *relative risk* for county i=1,…,n. We are going to use Poisson model:
 
-$$Yi|0i \sim Poisson(Eix0i), i=1, ... , n, $$
+$$Yit \sim N(\mu_{it},\sigma^{2}_{e} i) $$
 
-$$log(0i)=B0+B1xSexRatioi+ui+vi $$
 
+$$\mu_{it} = \beta_{0} + \xi( x_{i},t) $$
+Where, 
+
+- $Yit$ the PM10 values measuread at location i,
 - $B0$ is the intercept,
-- $B1$ is the coefficient of the sex_ratio  covariate,
-- $ui$ is a structured spatial effect,
-- $vi$ is an unstructured spatial effect.
+- $\sigma^{2}_{e}$ is the variance of the measurement error,
+- $\xi( x_{i},t)$ is a spatial random effect at location $x_{i}$.
 
 
-We need to define some parameters before running the model. First, we need to created a *neighborhood matrix* where we define the spatial random effect. With poly2nb() function we create a neighbors list based on the areas surrounding the boundaries. For each area, we have the indices of its neighbors. After this, with nb2INLA() we transform the list in a file representing the matrix. R-INLA package need this file to work with to be able to specify the spatial random effect.
 
-Mesh creation 
+### Mesh contruction
+
+We need to contruct a triangulated mesh to built the GMRF (Gaussian Markov random field) is built. We need to cover Poland region and the outer extension of the boundary to avoid boundary effects (variance increase). We use inla.mesh.2d() function for it.The matrix coordinates are used as initial mesh vertices.
+
+The mesh boundary is same as the polygon containing the map locations. Next we can see the mesh
+
+ 
 
 ```{r figure_4, echo = F,fig.cap="\\label{fig:figure_2}Poland map mesh"}
+
 coo <- cbind(d$x, d$y)
 bnd <- inla.nonconvex.hull(st_coordinates(m)[, 1:2])
 mesh <- inla.mesh.2d(
@@ -173,7 +185,7 @@ plot(mesh)
 points(coo, col = "red")
 ```
 
-
+Next we need to build the **SPDE** model on the mesh and the priors. For this purpose, we use inla.spde2.pcmatern() function.
 
 
 
@@ -262,7 +274,7 @@ res <- inla(formula,
 ```
 
 
-### Results and Interpretation
+## Results and Interpretation
 
 We can focus on the intercept  $B0$= 0.952 value with 95% credible interval between -22.460 and 24.263. The coefficient for sex_ratio is $B 1$ -2.4.
 
