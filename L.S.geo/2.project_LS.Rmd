@@ -109,7 +109,7 @@ d <- d[ind[[1]], ]
 ```
 
 
-```{r figure_1, echo = F, fig.cap="\\label{fig:figure_1}map projection of the measurements points in Poland"}
+```{r figure_1,fig.align='center', echo = F, fig.cap="\\label{fig:figure_1}map projection of the measurements points in Poland"}
 
 ggplot(m) + geom_sf() + coord_sf(datum = st_crs(m)) +
   geom_point(data = d, aes(x = x, y = y)) + theme_bw()
@@ -117,7 +117,9 @@ ggplot(m) + geom_sf() + coord_sf(datum = st_crs(m)) +
 ```
 
 
-```{r figure_2, echo = F, fig.cap="\\label{fig:figure_2}histogram of the PM10 particles in 2019"}
+Figure 1 show us the different measurement points in Poland map proyection.
+
+```{r figure_2,fig.align='center', echo = F, fig.cap="\\label{fig:figure_2}histogram of the PM10 particles in 2019"}
 
 ggplot(d) +
   geom_histogram(mapping = aes(x = value),bins=30) +
@@ -126,7 +128,10 @@ ggplot(d) +
 
 ```
 
-```{r figure_3, echo = F, fig.cap="\\label{fig:figure_2}PM10 particle values in Poland"}
+
+We can see in Figure 2 how the data has a normal distribution.
+
+```{r figure_3,fig.align='center', echo = F, fig.cap="\\label{fig:figure_3}PM10 particle values in Poland"}
 
 ggplot(m) + geom_sf() + coord_sf(datum = NA) +
   geom_point(
@@ -140,29 +145,13 @@ ggplot(m) + geom_sf() + coord_sf(datum = NA) +
 
 ```
 
+
+In Figure 3, the values of the pollutant in each monitoring station over time.
+
+
 \newpage
 
-Figure 1 show us the different measurement points in Poland map proyection.
-We can see in Figure 2 how the data has a normal distribution. In Figure 3, the values of the pollutant in each monitoring station over time.
-
-
 ## Modelling
-
-We are going to specify a spatial model to predict PM10 and fit the model using **R-INLA**. 
-
-
-$$Yit \sim N(\mu_{it},\sigma^{2}_{e} i) $$
-
-
-$$\mu_{it} = \beta_{0} + \xi( x_{i},t) $$
-Where, 
-
-- $Yit$ the PM10 values measuread at location i,
-- $B0$ is the intercept,
-- $\sigma^{2}_{e}$ is the variance of the measurement error,
-- $\xi( x_{i},t)$ is a spatial random effect at location $x_{i}$.
-
-
 
 ### Mesh contruction
 
@@ -172,7 +161,7 @@ The mesh boundary is same as the polygon containing the map locations. Next we c
 
  
 
-```{r figure_4, echo = F,fig.cap="\\label{fig:figure_2}Poland map mesh"}
+```{r figure_4, fig.align='center', echo = F,fig.cap="\\label{fig:figure_4}Poland map mesh"}
 
 coo <- cbind(d$x, d$y)
 bnd <- inla.nonconvex.hull(st_coordinates(m)[, 1:2])
@@ -180,12 +169,16 @@ mesh <- inla.mesh.2d(
   loc = coo, boundary = bnd,
   max.edge = c(100000, 200000), cutoff = 500
 )
-mesh$n
+#mesh$n
 plot(mesh)
 points(coo, col = "red")
 ```
 
-Next we need to build the **SPDE** model on the mesh and the priors. For this purpose, we use inla.spde2.pcmatern() function.
+
+
+Next we need to build the **SPDE** model on the mesh and the priors. For this purpose, we use inla.spde2.pcmatern() function. After, we generate the index set for the model, specifying the number of vertices. In order to proyect the spatial Gaussian random field we obtain from the observations to the mesh nodes, we need to build a projection matrix *A*. 
+
+We also need to create the data with the locations we want to use for the predictions. We create a grid (Figure.5) which use the coordinates in the range of the observation locations, and we will keep only the locations that are inside the map of Poland.
 
 
 
@@ -221,12 +214,19 @@ p <- st_as_sf(data.frame(x = dp[, 1], y = dp[, 2]),
 st_crs(p) <- st_crs(2180)
 ind <- st_intersects(m, p)
 dp <- dp[ind[[1]], ]
-#plot(dp, asp = 1)
 
 coop <- dp[, 1:2]
 Ap <- inla.spde.make.A(mesh = mesh, loc = coop)
 
 ```
+
+
+```{r figure_5, fig.align='center', echo = F, fig.cap="\\label{fig:figure_5}Location grid for the predictions in Poland"}
+plot(dp, asp = 1)
+```
+
+
+We also need a matrix *Ap* that projects the spatially continuous Gaussian random field from the prediction locations to the mesh we created. We use the inla.stack() to construct the stacks for the estimation and predictions
 
 
 
@@ -249,8 +249,35 @@ stk.p <- inla.stack(
 stk.full <- inla.stack(stk.e, stk.p)
 ```
 
+\newpage
+
+## Model
+
+We are going to specify a spatial model to predict PM10 and fit the model using **R-INLA**. PM10 measurements are at different stations in Poland. yet, we have continuity in space, so we can use a geostatistical model to predict PM10 values in other points in the map.
+
+We assume the PM10 meditions $Y_{i}$ at $s_{i}$ locations follows a normal distribution with mean $\mu_{i}$ and variance $\sigma^{2}$. The mean $\mu_{i}$ is expressed as the sum of and intercept $\beta_{0}$ and a spatially structured random effect that follows a zero-mean Gaussian process.
 
 
+
+
+
+
+
+$$Yit \sim N(\mu_{it},\sigma^{2}_{e} i) $$
+
+
+$$\mu_{it} = \beta_{0} + \xi( x_{i},t)$$
+
+
+Where, 
+
+- $Yit$ the PM10 values measured at location i,
+- $B0$ is the intercept,
+- $\sigma^{2}_{e}$ is the variance of the measurement error,
+- $\xi( x_{i},t)$ is a spatial random effect at location $x_{i}$.
+
+
+The response variable is in the left hand side of the formula, the fixed and random effects on the right side. Last step is to fit the model by inla(), using the default priors.
 
 
 ```{r formula, echo=F, message=FALSE}
@@ -273,6 +300,9 @@ res <- inla(formula,
 
 ```
 
+
+
+\newpage
 
 ## Results and Interpretation
 
@@ -307,7 +337,7 @@ Let's see the posterior distribution of the *sex_ratio*. We do this by calculati
 
 We can see that the distribution density is around 0. This means this variable is not influencing our response variable.
 
-```{r results_1, echo=F}
+```{r figure_6, fig.align='center', echo = F, fig.cap="\\label{fig:figure_6}PM10 prediction values in Poland"}
 ggplot(dpm) + geom_tile(aes(east, north, fill = value)) +
   facet_wrap(~variable, nrow = 1) +
   coord_fixed(ratio = 1) +
@@ -327,10 +357,12 @@ So, the mean is the estimation of the relative risk, and the quantiles are the l
 
 ### Discussion section
 
-In this work we study the influence of the *sex_Rati*o* in the cancer cases. We can see overall the variable is no influencing so much. We can focus our study in the *population* variable instead, we saw the correlation value was higher.
-The data has only 16 observations, we can focus on finding datasets with more values to work with
 
-With this project I learned how to download, manipulate and analyze areal data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and INLA for example.
+The limitation of the study is the temporal absence, the data had been measured more years but for this study we only use 2019 data.
+
+
+
+With this project I learned how to download, manipulate and analyze geospatial data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and R-INLA for example.
 
   
 
