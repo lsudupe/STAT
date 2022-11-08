@@ -48,6 +48,7 @@ The geospatial data of our pollutant is measured in a finite locations and we wa
 We are going to use stochastic partial differential equation approach (SPDE) implemented in *R-INLA*. We are going to fit a spatial model and predict the variable of interest in no measure locations.
 
 
+\newpage
 
 ## Data
 
@@ -306,9 +307,12 @@ res <- inla(formula,
 
 ## Results and Interpretation
 
-We can focus on the intercept  $B0$= 0.952 value with 95% credible interval between -22.460 and 24.263. The coefficient for sex_ratio is $B 1$ -2.4.
+With summary(res) we can see the parameter estimates of the fixed and random effects. The intercept has *21.78* mean value and *0.375* standard deviation with 95% credible interval between -20.957 and 22.442.
+
+The data frame res$summary.fitted.values contains the mean, and the 2.5 and 97.5 percentiles of the fitted values. The indices of the rows corresponding to the predictions can be obtained with the inla.stack.index() function by passing stk.full and specifying the tag "pred".
 
 ```{r results, echo=F}
+#https://becarioprecario.bitbucket.io/spde-gitbook/ch-intro.html
 #summary(res)
 index <- inla.stack.index(stack = stk.full, tag = "pred")$data
 pred_mean <- res$summary.fitted.values[index, "mean"]
@@ -333,11 +337,27 @@ dpm <- rbind(
 dpm$variable <- as.factor(dpm$variable)
 ```
 
-Let's see the posterior distribution of the *sex_ratio*. We do this by calculating a smoothing of the marginal distribution of the coefficient with inla.smarginal().
 
-We can see that the distribution density is around 0. This means this variable is not influencing our response variable.
 
-```{r figure_6, fig.align='center', echo = F, fig.cap="\\label{fig:figure_6}PM10 prediction values in Poland"}
+```{r figure_6, fig.align='center', echo = F, fig.cap="\\label{fig:figure_6}B0 marginal plot"}
+
+alpha <- res$marginals.fixed[[1]]
+ggplot(data.frame(inla.smarginal(alpha)), aes(x, y)) +
+  geom_line() +
+  ggtitle("B0") +
+  theme_bw()
+
+```
+
+We can see in Figure 6 the posterior distributions of the intercept.
+
+
+We plot the predicted PM10 values for 2019 year. To be able to obtain the predictions from the model, we use inla.stack.index() function to extract the indices. We use the mean predictions with the lower and upper limits of the 95% credible intervals and provide measures of uncertainty. 
+
+
+
+
+```{r figure_7, fig.align='center', echo = F, fig.cap="\\label{fig:figure_7}PM10 prediction values in Poland"}
 ggplot(dpm) + geom_tile(aes(east, north, fill = value)) +
   facet_wrap(~variable, nrow = 1) +
   coord_fixed(ratio = 1) +
@@ -349,23 +369,24 @@ ggplot(dpm) + geom_tile(aes(east, north, fill = value)) +
 ```
 
 
-We can get the *risk estimation* and the uncertainty for each of the areas. This information is given to us like the mean posterior and the 95% credible intervals of $0i$, i=1,…,n which are in res$summary.fitted.values.
+If we observe the intensity changes overall, the spatial measurements gradients are similar. If we focus on the 95% limits, lower limit map is showing less pollutant levels than the upper limit. 
 
-So, the mean is the estimation of the relative risk, and the quantiles are the lower and upper limits of the 95% credible intervals of the risks. If we plot this results, we can see Auckland and Bay of plenty counties has higher relative risk values than the other counties in the north. From the south, Ottago has the highest relative risk.
+The posterior mean for the predicted PM10 values in 2019 is lower in the north. The spatial effect is higher in the south, meaning in higher posterior mean in the south. The correlation with the polutant and the ocean proximity could be deeper analyze in next studies.
 
 
+\newpage
 
 ### Discussion section
 
 
-The limitation of the study is the temporal absence, the data had been measured more years but for this study we only use 2019 data.
+The maps give us information about the spatial predictions the year the the data was collected, the limitation of the study is the temporal absence, the data had been measured more years but for this study we only use 2019 data. To improve this study we can produced a spatio-temporal model. This maps can help us to understand the cities pollutant concentrations if we mixed this information with other variables, as cities location or population.
 
+The proximity to the ocean is also a variable to take into account
 
 
 With this project I learned how to download, manipulate and analyze geospatial data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and R-INLA for example.
 
   
-
   
   
 
