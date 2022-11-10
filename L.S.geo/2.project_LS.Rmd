@@ -61,7 +61,6 @@ We need to transform the object with **UTM** projection. For this, we use the ES
 m <- getData(name = "GADM", country = "Poland", level = 0)
 #plot(m1)
 
-###CREO QUE NO NECESITO ESTO
 m <- m %>%
   st_as_sf() %>%
   st_cast("POLYGON") %>%
