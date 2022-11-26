@@ -82,8 +82,6 @@ tm_basemap() + tm_shape(dpts_a) + tm_dots()
 ```
 
 
-\newpage
-
 ## Spatial climatic covariates
 
 
@@ -119,7 +117,7 @@ r_a <- raster(map_a, resolution = resolution_a)
 
 nrow_a <- nrow(r_a)
 ncol_a <- ncol(r_a)
-nrow_a*ncol_a
+#nrow_a*ncol_a
 
 #set to 0 the values of all the grid cells
 r_a[] <- 0
@@ -185,7 +183,7 @@ Once this is done, we nned to include in the grid the data we are going to use f
 - *cellarea* with the cell areas.
 - *cov* with the covariate values in each of the cells.
 
-For the missing values in the covariate,
+For the missing values in the covariate, we input the covariate mean values. With *tmap* we create the plots of the number of kingfishers and the covariate values in each of the grid cells.  
 
 
 
@@ -205,10 +203,10 @@ grid_a$cov <- raster::extract(rcov_a, coordinates(grid_a))
 gridmap_a <- raster::intersect(grid_a, map_a)
 grid_a <- grid_a[grid_a$id %in% gridmap_a$id, ]
 #plot(grid_a)
-summary(grid_a)
+#summary(grid_a)
 #missing data take out
 indNA_a <- which(is.na(grid_a$cov))
-indNA_a
+#indNA_a
 
 grid_a$cov[indNA_a] <- grid_a$cov[mean(indNA_a)]
 
@@ -222,7 +220,7 @@ gridborder_a <- gUnaryUnion(grid_a)
 
 
 
-```{r figure_3,fig.align='center', echo = F, fig.cap="\\label{fig:figure_3}XXXXXX"}
+```{r figure_3,fig.align='center', echo = F,warning=FALSE, message=FALSE, fig.cap="\\label{fig:figure_3}Number of kingfishers and the covariate values"}
 
 tmap_mode("plot")
 tm_shape(grid_a) +
@@ -232,54 +230,72 @@ tm_shape(grid_a) +
 
 ```
 
+\newpage
 
 ## Fitting the model with INLA
 
-```{r formula, echo=F, message=FALSE}
-#5.4 Fitting the model using INLA
+We are going to use *R-INLA* to fit the log-Gaussian Cox process to model the sighting data. First we need to specify the formula with the linear predictor and then call inla() function. 
 
+*Y* is the outcome variable (number of occurrences in each cell of the grid). *f()* function is for the random effects. *id* is for the spatially structured effect and *id2* for the unstructured random effect.
+
+
+The outcome variable is Y (the number of occurrences in each cell) and the covariate is cov.
+
+The random effects are specified with the f() function where the first argument is an index vector specifying which elements of the random effect apply to each observation, and the other arguments are the model name and other options. In the formula, different random effects need to have different indices vectors. We use grid$id for the spatially structured effect, and create an index vector grid$id2 with the same values as grid$id for the unstructured random effect.
+
+```{r formula, echo=T, message=FALSE}
+#random effects
 grid_a$id2 <- grid_a$id
 
+#formula
 formula <- Y ~ 1 + cov +
   f(id, model="rw2d", nrow = nrow_a, ncol = ncol_a) +
   f(id2, model="iid")
-
+#fit the model
 res_a <- inla(formula, family = "poisson", data = grid_a@data,
             E = cellarea_a, control.predictor = list(compute = TRUE))
-
 
 ```
 
 
-\newpage
 
 ## Results and Interpretation
 
-With summary(res) we can see the parameter estimates of the fixed and random effects. The intercept has *21.78* mean value and *0.375* standard deviation with 95% credible interval between -20.957 and 22.442.
+With summary(res_a) we can see the parameter estimates of the fixed and random effects. The intercept  $B_{0}$ has *-4.892* mean value and *0.754* standard deviation with 95% credible interval between -6.409 and -3.444.
 
-The data frame res$summary.fitted.values contains the mean, and the 2.5 and 97.5 percentiles of the fitted values. The indices of the rows corresponding to the predictions can be obtained with the inla.stack.index() function by passing stk.full and specifying the tag "pred".
+The data frame res_a$summary.fitted.values contains the mean, and the 2.5 and 97.5 percentiles of the fitted values. We can appreciate the positive effect of the covariate minimum temperature on the intensity of the process with a posterior mean  of 0.047 with a 95% credible interval between  0.034 and 0.060.
 
-```{r results, echo=F}
-#5.5 Results
-summary(res_a)
+```{r results, echo=F, warning=FALSE}
+head(summary(res_a))
 
 marginal_a <- inla.smarginal(res_a$marginals.fixed$cov)
 marginal_a <- data.frame(marginal_a)
+#We can also obtain the posterior mean of the unstructured random effect.
+grid_a$reiid <- res_a$summary.random$id2[, "mean"]
+```
+
+\newpage
+
+We can see the posterior distribution of the coefficient of the covariate $B_{1}$ in the Figure 4.
+
+```{r figure_4,fig.align='center', echo = F, warning=FALSE, message=FALSE, fig.cap="\\label{fig:figure_4}Posterior distribution of the coefficient of the covariate"}
 ggplot(marginal_a, aes(x = x, y = y)) + geom_line() +
   labs(x = expression(beta[1]), y = "Density") +
   geom_vline(xintercept = 0, col = "black") + theme_bw()
 nrow(res_a$summary.random$id)
 grid_a$respa <- res_a$summary.random$id[grid_a$id, "mean"]
-
-#We can also obtain the posterior mean of the unstructured random effect.
-grid_a$reiid <- res_a$summary.random$id2[, "mean"]
-
 ```
 
+\newpage
+
+
+We can can add to our grid the information of the posterior mean of the spatial effect in the cells of Spain in the Figure 5.
+
+The pattern of the spatial structured random effect is not very constant, The unstructured random show us different locations with high values. 
 
 
 
-```{r figure_4,fig.align='center', echo = F, fig.cap="\\label{fig:figure_4}XXXXXXX"}
+```{r figure_5,fig.align='center', echo = F, warning=FALSE, message=FALSE, fig.cap="\\label{fig:figure_5}Grid the information of the posterior mean of the spatial effect"}
 
 #Then we can create maps of the random effects with tmap
 tm_shape(grid_a) +
@@ -290,20 +306,23 @@ tm_shape(grid_a) +
 
 ```
 
-\newpage
 
 
 
-```{r figure_5,fig.align='center', echo = F, fig.cap="\\label{fig:figure_5}Intersity of kingfisher ocurrence"}
+Figure 6 show us the mean and the quantiles of the predicted intensity (mean number of events per cell in the grid).  We use the mean predictions with the lower and upper limits of the 95% credible intervals and provide measures of uncertainty. 
+
+
+We create a variable with the mean number of events of each cell, *NE*, where we store the predicted intensity multiplied by the cell area and added to our grid object. We also added the lower and upper limit credible intervals (95%) by adding the quantile values multiplied by the cell areas.
+
+
+```{r figure_6,fig.align='center', echo = F, warning=FALSE, message=FALSE, fig.cap="\\label{fig:figure_6}Intersity of kingfisher ocurrence"}
 
 cellarea_a <- resolution_a*resolution_a
 grid_a$NE <- res_a$summary.fitted.values[, "mean"] * cellarea_a
 grid_a$LL <- res_a$summary.fitted.values[, "0.025quant"] * cellarea_a
 grid_a$UL <- res_a$summary.fitted.values[, "0.975quant"] * cellarea_a
-summary(grid_a)
-
+#summary(grid_a)
 #We use tmap to create maps with the mean and lower and upper limits of 95% credible
-
 tm_shape(grid_a) +
   tm_polygons(col = c("NE", "LL", "UL"),
               style = 'fixed', border.col = "transparent",
@@ -315,29 +334,18 @@ tm_shape(grid_a) +
 ```
 
 
-
-
-We can see in Figure 6 the posterior distributions of the intercept.
-
-
-We plot the predicted PM10 values for 2019 year. To be able to obtain the predictions from the model, we use inla.stack.index() function to extract the indices. We use the mean predictions with the lower and upper limits of the 95% credible intervals and provide measures of uncertainty. 
-
-
-If we observe the intensity changes overall, the spatial measurements gradients are similar. If we focus on the 95% limits, lower limit map is showing less pollutant levels than the upper limit. 
-
-The posterior mean for the predicted PM10 values in 2019 is lower in the north. The spatial effect is higher in the south, meaning in higher posterior mean in the south. The correlation with the polutant and the ocean proximity could be deeper analyze in next studies.
+If we observe the intensity changes overall, most of our cells has low values, the highest values are 12 kingfishers in the cell. The maps with the lower and upper limits of 95% credible intervals denote the uncertainty of these predictions.        
 
 
 \newpage
 
 ### Discussion section
 
+Those plots give us information about the intensity predictions of the years the data was collected. 
 
-The maps give us information about the spatial predictions the year the the data was collected, the limitation of the study is the temporal absence, the data had been measured more years but for this study we only use 2019 data. To improve this study we can produced a spatio-temporal model. This maps can help us to understand the cities pollutant concentrations if we mixed this information with other variables, as cities location or population.
+The kingfisher lives in the rives, the limitation of the study is the river spatial location absence.  To improve this study we can produced model where we study the river occurrence. This maps can help us to understand this specie habitat when we mixed this information with other variables, as river location or temperature.
 
-The proximity to the ocean is also a variable to take into account
-
-With this project I learned how to download, manipulate and analyze geospatial data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and R-INLA for example.
+With this project I learned how to download, manipulate and analyze point patterns data. I work with different packages to do so, gaining experience with Rstudio, Rmarkdown and R-INLA for example.
 
   
   
