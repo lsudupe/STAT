@@ -73,7 +73,7 @@ dpts_a <- SpatialPoints(a[, c("longitude", "latitude")])
 
 The interactive map show us the kingfisher locations. There is a heterogeneous distribution with more point near the sea. This could be due to high abundance of rivers near the sea. Even so, there are regions with more points like near the Pirineus and Extremadura regions.
 
-```{r figure_0,fig.align='center', echo = F,warning=FALSE,fig.cap="\\label{fig:figure_0}Kingfisher ocurrence in Spain"}
+```{r figure_1,fig.align='center', echo = F,warning=FALSE,fig.cap="\\label{fig:figure_1}Kingfisher ocurrence in Spain"}
 #Then we create the map plotting the locations of dpts
 
 tmap_mode("view")
@@ -113,9 +113,9 @@ map_a <- ms_filter_islands(map_a, min_area = 12391399903)
 
 ##############3
 
-resolution_a <- 0.20
+resolution_a <- 0.35
 r_a <- raster(map_a, resolution = resolution_a)
-print(r_a)
+#print(r_a)
 
 nrow_a <- nrow(r_a)
 ncol_a <- ncol(r_a)
@@ -135,7 +135,7 @@ grid_a <- rasterToPolygons(r_a)
 
 
 
-```{r figure_1,fig.align='center', echo = F, warning= F, fig.cap="\\label{fig:figure_1}Average anual min temperature"}
+```{r figure_2,fig.align='center', echo = F, warning= F, fig.cap="\\label{fig:figure_2}Average anual min temperature"}
 
 plot(rcov_a)
 
@@ -154,7 +154,7 @@ We want to see patterns in the distribution of the sighting and estimate the int
 We are assuming that the sighting locations in Spain, ${s_{i}:i=1,…,n}$ , has been generated as a log-Gaussian Cox process with intensity given by $\Lambda(s)=exp(\eta(s))$. We can use a grid approach like in the second project of this course, the n model can be fitted by latent Gaussian model through the gridding technique.
 
 We want to discretize the region of interest into grid with $n_{1}×n_{2}=N$ cells 
-${s_{ij}, i=1,…,n_{1},, j=1,…,n_{2}}$. The mean number of events in cell $s_{ij}$ is given by the integral of the intensity over the cell $\Lambda(ij)=\int_{s_{ij}}exp(\eta(s))ds$, and this integral can be approximated by $\Lambda(ij)≈|s_{ij}|exp(\eta_{ij})$, where $|s_{ij}|$ is the area of the cell $s_{ij}$. Then, conditional on the latent field ηij, the observed number of locations in grid cell $s_{ij}$, $y_{ij}$, are independent and Poisson distributed as follows:
+${s_{ij}, i=1,…,n_{1},, j=1,…,n_{2}}$. The mean number of events in cell $s_{ij}$ is given by the integral of the intensity over the cell $\Lambda(ij)=\int_{s_{ij}}exp(\eta(s))ds$, and this integral can be approximated by $\Lambda(ij)\sim|s_{ij}|exp(\eta_{ij})$, where $|s_{ij}|$ is the area of the cell $s_{ij}$. Then, conditional on the latent field $\eta_{ij}$, the observed number of locations in grid cell $s_{ij}$, $y_{ij}$, are independent and Poisson distributed as follows:
 
 
 
@@ -174,8 +174,18 @@ Where,
 - $f_{s}$ is a unstructured random effect reflecting independent variability in cell $s_{ij}$. 
 
 
-## Computational grid
+## Computational grid and data 
 
+We want to fit and project the model in the grid, so we create a grid that covers the main area of Spain. With ne_countries() function of *rnaturalearth* package we obtain the map and with ms_filter_islands() function we select only the main area, with out the islands. After we create a raster that covers Spain region. Finally, we convert the object to *SpatialPolygonsDataFrame*, we are going to use this grid to fit the model with INLA.
+
+Once this is done, we nned to include in the grid the data we are going to use for modelling. We are going to add the following variables:
+
+- *id* with the id of the cells.
+- *Y* with the number of sloths.
+- *cellarea* with the cell areas.
+- *cov* with the covariate values in each of the cells.
+
+For the missing values in the covariate,
 
 
 
@@ -188,18 +198,19 @@ grid_a$id <- 1:nrow(grid_a)
 grid_a$Y <- grid_a$layer
 grid_a$cellarea <- resolution_a*resolution_a
 
-grid_a$cov <- extract(rcov_a, coordinates(grid_a))
+grid_a$cov <- raster::extract(rcov_a, coordinates(grid_a))
 
 #Finally, we delete the cells of grid that fall outside Costa Rica
 #plot(grid)
 gridmap_a <- raster::intersect(grid_a, map_a)
 grid_a <- grid_a[grid_a$id %in% gridmap_a$id, ]
 #plot(grid_a)
-#summary(grid_a)
+summary(grid_a)
 #missing data take out
 indNA_a <- which(is.na(grid_a$cov))
 indNA_a
-grid_a$cov[indNA_a] <- grid_a$cov[indNA_a+1]
+
+grid_a$cov[indNA_a] <- grid_a$cov[mean(indNA_a)]
 
 #We use tmap to create maps of the number of sloths and 
 #the covariate values in each of the cells. 
@@ -211,7 +222,7 @@ gridborder_a <- gUnaryUnion(grid_a)
 
 
 
-```{r figure_2,fig.align='center', echo = F, fig.cap="\\label{fig:figure_2}XXXXXX"}
+```{r figure_3,fig.align='center', echo = F, fig.cap="\\label{fig:figure_3}XXXXXX"}
 
 tmap_mode("plot")
 tm_shape(grid_a) +
@@ -222,6 +233,7 @@ tm_shape(grid_a) +
 ```
 
 
+## Fitting the model with INLA
 
 ```{r formula, echo=F, message=FALSE}
 #5.4 Fitting the model using INLA
@@ -267,7 +279,7 @@ grid_a$reiid <- res_a$summary.random$id2[, "mean"]
 
 
 
-```{r figure_3,fig.align='center', echo = F, fig.cap="\\label{fig:figure_3}XXXXXXX"}
+```{r figure_4,fig.align='center', echo = F, fig.cap="\\label{fig:figure_4}XXXXXXX"}
 
 #Then we can create maps of the random effects with tmap
 tm_shape(grid_a) +
@@ -282,7 +294,7 @@ tm_shape(grid_a) +
 
 
 
-```{r figure_4,fig.align='center', echo = F, fig.cap="\\label{fig:figure_4}XXXXXXX"}
+```{r figure_5,fig.align='center', echo = F, fig.cap="\\label{fig:figure_5}Intersity of kingfisher ocurrence"}
 
 cellarea_a <- resolution_a*resolution_a
 grid_a$NE <- res_a$summary.fitted.values[, "mean"] * cellarea_a
@@ -295,9 +307,11 @@ summary(grid_a)
 tm_shape(grid_a) +
   tm_polygons(col = c("NE", "LL", "UL"),
               style = 'fixed', border.col = "transparent",
-              breaks = c(0, 1,2, ceiling(max(grid_a$UL)))) +
+              breaks = c(0, 3,6,9, ceiling(max(grid_a$UL)))) +
   tm_shape(gridborder_a) + tm_borders() +
   tm_facets(ncol = 3) + tm_legend(legend.position = c("left", "bottom"))
+
+
 ```
 
 
