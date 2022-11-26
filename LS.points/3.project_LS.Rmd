@@ -91,7 +91,7 @@ We get a object with minimum temperature for each month. So we transform the dat
 
 
 ```{r data_1, echo = F, warning=FALSE}
-#4 Spatial climatic covariates
+#Spatial climatic covariates
 
 rmonth_a <- getData(name = "worldclim", var = "tmin", res = 10)
 #plot(rmonth_a)
@@ -188,7 +188,6 @@ For the missing values in the covariate, we input the covariate mean values. Wit
 
 
 ```{r data_2, echo = F, warning=FALSE}
-#5.3 Data
 #Now, we include in the SpatialPolygonsDataFrame grid the data needed for modeling
 grid_a <- grid_a[as.vector(t(matrix(1:nrow(grid_a), nrow = ncol_a, ncol = nrow_a))), ]
 
@@ -198,7 +197,7 @@ grid_a$cellarea <- resolution_a*resolution_a
 
 grid_a$cov <- raster::extract(rcov_a, coordinates(grid_a))
 
-#Finally, we delete the cells of grid that fall outside Costa Rica
+#Finally, we delete the cells of grid that fall outside Spain
 #plot(grid)
 gridmap_a <- raster::intersect(grid_a, map_a)
 grid_a <- grid_a[grid_a$id %in% gridmap_a$id, ]
