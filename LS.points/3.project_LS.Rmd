@@ -35,7 +35,7 @@ library(ggplot2)
 
 ## Abstract
 
-**This project will be focused on predicting the intensity of the common kingfisher sighting in Spain. We are going to use the climate effect as a covariate. Point pattern  project is the thrird one of the three we need to prepare for the <a href = "https://www.paulamoraga.com/book-gds/index.html">STAT394 course</a>. In the first section we are going to describe the data and briefly explain point pattern data type. Next, we will focus on preparing the data for the statistical modelling. After this, we are going to go through the results, understanding the meaning and finally a short discussion of the project.**
+**This project will be focused on predicting the intensity of the common kingfisher sighting in Spain. We are going to use the climate effect as a covariate. Point pattern  project is the third one of the three we need to prepare for the <a href = "https://www.paulamoraga.com/book-gds/index.html">STAT394 course</a>. In the first section we are going to describe the data and briefly explain point pattern data type. Next, we will focus on preparing the data for the statistical modelling. After this, we are going to go through the results, understanding the meaning and finally a short discussion of the project.**
 
 ```{r echo=F, warning= F, message=F}
 #opts_chunk$set(message = FALSE, warning = FALSE, error = FALSE, tidy = FALSE, cache = FALSE,results = 'asis' )
@@ -44,20 +44,16 @@ library(ggplot2)
 
 ## Introduction
 
-If we are dealing with data which has spatial continuity and have been collected at specific places we have geospatial data. In our case, this data represents the level of a pollutant, a particulate matter < 10 micrometers aerosol measured in different location in Poland during 2019. This particles are suspended in the air and has less than 10 micrometers of diameter. Some particles can get into the lungs and also in the bloodstream. The data had been downloaded from <a href = "http://aidef.apps.eea.europa.eu/?source=%7B%22query%22%3A%7B%22bool%22%3A%7B%22must%22%3A%5B%7B%22term%22%3A%7B%22Pollutant%22%3A%22Particulate%20matter%20%3C%2010%20%C2%B5m%20(aerosol)%22%7D%7D%2C%7B%22query_string%22%3A%7B%22query%22%3A%22Poland%22%2C%22default_operator%22%3A%22OR%22%2C%22analyze_wildcard%22%3Atrue%7D%7D%5D%7D%7D%2C%22display_type%22%3A%22tabular%22%7D">European Environment Agency (EEA)</a>.
+For stochastic models we use a set of random variables, projections and calculations are repeated to reach the result probability distributions. In our case, we have point located in different places in the maps that give us information about a event. What we can achieve is the identification of pattern in the distribution and evaluate the intensity. When working with spatial point patterns we also want to study the correlation between the points location and spatial covariates.
 
-The geospatial data of our pollutant is measured in a finite locations and we want to infer the characteristics of the spatial process such as the mean and variability of the process. This features are useful when predicting the process at no measured locations. We are going to model the data using *R-INLA*. 
-
-We are going to use stochastic partial differential equation approach (SPDE) implemented in *R-INLA*. We are going to fit a spatial model and predict the variable of interest in no measure locations.
+In our case, the data represents common kingfisher sighting in Spain. Also call the river kingfisher, is distributed across Eurasia and North Africa. The data had been downloaded from the package *spocc*, where we have the location of the sighting between 2000-2020. In this project, We will work with a fit log-Gaussian Cox process model where we will use the anual minimum temperature in Spain as a covariate and random effect to model the unexplained variability. We are going to model the data using *R-INLA*. 
 
 
 \newpage
 
 ## Data
 
-Poland map was obtained from the **raster** package. We use **GADM**, the global administrative boundaries and level 0. In our case, we do not want to have more subdivisions in the country. 
-
-We need to transform the object with **UTM** projection. For this, we use the ESPG code of Poland, 25830.
+Kingfisher data was obtained from the **spocc** package.  We specify country = ES to select Spain occurrences and select has_coords = TRUE in order to get the coordinates. We get a *occdat* class object to work with.
 
 
 ```{r data, echo = F, warning=FALSE}
@@ -65,26 +61,38 @@ aa <- occ(query = 'Alcedo atthis', from = 'gbif',
           date = c("2000-01-01", "2020-12-31"),
           gbifopts = list(country = "ES"),
           has_coords = TRUE, limit = 1000)
-names(aa)
+#names(aa)
 a <- occ2df(aa)
-summary(a)
+#summary(a)
 
 #We can visualize the locations of sloths retrieved in Spain using several mapping package
-
 dpts_a <- SpatialPoints(a[, c("longitude", "latitude")])
 
+```
+
+
+The interactive map show us the kingfisher locations. There is a heterogeneous distribution with more point near the sea. This could be due to high abundance of rivers near the sea. Even so, there are regions with more points like near the Pirineus and Extremadura regions.
+
+```{r figure_0,fig.align='center', echo = F,warning=FALSE,fig.cap="\\label{fig:figure_0}Kingfisher ocurrence in Spain"}
 #Then we create the map plotting the locations of dpts
 
 tmap_mode("view")
 tm_basemap() + tm_shape(dpts_a) + tm_dots()
+
 ```
 
-The European Environment Agency provide air pollution measurements of the different European countries. For this proyect we use 2019 particulate matter (PM10) measurements. Data distribution on the 2019 year on Poland. After downloaded the data, we subset and filter it to obtain a normal distributed dataset to work with. 
 
-We keep the variables indicating the day/year, monitoring station id, longitude, latitude and pollutant values.
+\newpage
+
+## Spatial climatic covariates
 
 
-```{r data_1, echo = F}
+We are going to use the annual minimum temperature observed in Spain. Kingfishers used to migrate to different areas if the river where they live get frozen. So this spatial variable can influence the occurrence. The temperature information was obtained from *raster* package. 
+
+We get a object with minimum temperature for each month. So we transform the data to obtain the annual average minimum temperature.
+
+
+```{r data_1, echo = F, warning=FALSE}
 #4 Spatial climatic covariates
 
 rmonth_a <- getData(name = "worldclim", var = "tmin", res = 10)
@@ -109,14 +117,14 @@ resolution_a <- 0.20
 r_a <- raster(map_a, resolution = resolution_a)
 print(r_a)
 
-(nrow_a <- nrow(r_a))
-(ncol_a <- ncol(r_a))
+nrow_a <- nrow(r_a)
+ncol_a <- ncol(r_a)
 nrow_a*ncol_a
 
 #set to 0 the values of all the grid cells
 r_a[] <- 0
 tab_a <- table(cellFromXY(r_a, dpts_a))
-tab_a
+#tab_a
 
 r_a[as.numeric(names(tab_a))] <- tab_a
 #plot(r_a)
@@ -125,14 +133,53 @@ r_a[as.numeric(names(tab_a))] <- tab_a
 grid_a <- rasterToPolygons(r_a)
 ```
 
-```{r figure_1,fig.align='center', echo = F, fig.cap="\\label{fig:figure_1}XXXXXXXX"}
+
+
+```{r figure_1,fig.align='center', echo = F, warning= F, fig.cap="\\label{fig:figure_1}Average anual min temperature"}
 
 plot(rcov_a)
 
 ```
 
 
-```{r data_2, echo = F}
+\newpage
+
+# Implementing and fitting the spatial point process model
+
+## Log-Gaussian Cox process model
+
+
+We want to see patterns in the distribution of the sighting and estimate the intensity of events. Even if we can use Poisson process model for it, this model is too restrictive. So we are going to use log-Gaussian Cox process model, used in environmentally affected conditions.
+
+We are assuming that the sighting locations in Spain, ${s_{i}:i=1,…,n}$ , has been generated as a log-Gaussian Cox process with intensity given by $\Lambda(s)=exp(\eta(s))$. We can use a grid approach like in the second project of this course, the n model can be fitted by latent Gaussian model through the gridding technique.
+
+We want to discretize the region of interest into grid with $n_{1}×n_{2}=N$ cells 
+${s_{ij}, i=1,…,n_{1},, j=1,…,n_{2}}$. The mean number of events in cell $s_{ij}$ is given by the integral of the intensity over the cell $\Lambda(ij)=\int_{s_{ij}}exp(\eta(s))ds$, and this integral can be approximated by $\Lambda(ij)≈|s_{ij}|exp(\eta_{ij})$, where $|s_{ij}|$ is the area of the cell $s_{ij}$. Then, conditional on the latent field ηij, the observed number of locations in grid cell $s_{ij}$, $y_{ij}$, are independent and Poisson distributed as follows:
+
+
+
+$$Y_{ij}|\eta_{ij} \sim Poisson(|s_{ij}|exp(\eta_{ij})) $$
+
+
+$$\eta_{ij} = \beta_{0} + \beta_{1} x  cov(s_{ij}) + f_{s}(s_{ij}) + f_{u}(s_{ij}) $$
+
+
+Where, 
+
+- $Yit$ the PM10 values measured at location i,
+- $B0$ is the intercept,
+- $cov(s_{ij})$ is the covariate at $s_{ij}$.
+- $\beta_{1}$ is a the coefficient of $cov(s_{ij})$.
+- $f_{s}$ is a spatially structured random effect reflecting unexplained variability.
+- $f_{s}$ is a unstructured random effect reflecting independent variability in cell $s_{ij}$. 
+
+
+## Computational grid
+
+
+
+
+```{r data_2, echo = F, warning=FALSE}
 #5.3 Data
 #Now, we include in the SpatialPolygonsDataFrame grid the data needed for modeling
 grid_a <- grid_a[as.vector(t(matrix(1:nrow(grid_a), nrow = ncol_a, ncol = nrow_a))), ]
@@ -148,7 +195,7 @@ grid_a$cov <- extract(rcov_a, coordinates(grid_a))
 gridmap_a <- raster::intersect(grid_a, map_a)
 grid_a <- grid_a[grid_a$id %in% gridmap_a$id, ]
 #plot(grid_a)
-summary(grid_a)
+#summary(grid_a)
 #missing data take out
 indNA_a <- which(is.na(grid_a$cov))
 indNA_a
@@ -174,44 +221,6 @@ tm_shape(grid_a) +
 
 ```
 
-
-
-
-
-\newpage
-
-## Modelling
-
-### Mesh contruction
-
-
-
-\newpage
-
-## Model
-
-We are going to specify a spatial model to predict PM10 and fit the model using **R-INLA**. PM10 measurements are at different stations in Poland. yet, we have continuity in space, so we can use a geostatistical model to predict PM10 values in other points in the map.
-
-We assume the PM10 meditions $Y_{i}$ at $s_{i}$ locations follows a normal distribution with mean $\mu_{i}$ and variance $\sigma^{2}$. The mean $\mu_{i}$ is expressed as the sum of and intercept $\beta_{0}$ and a spatially structured random effect that follows a zero-mean Gaussian process.
-
-
-
-
-$$Yit \sim N(\mu_{it},\sigma^{2}_{e} i) $$
-
-
-$$\mu_{it} = \beta_{0} + \xi( x_{i},t)$$
-
-
-Where, 
-
-- $Yit$ the PM10 values measured at location i,
-- $B0$ is the intercept,
-- $\sigma^{2}_{e}$ is the variance of the measurement error,
-- $\xi( x_{i},t)$ is a spatial random effect at location $x_{i}$.
-
-
-The response variable is in the left hand side of the formula, the fixed and random effects on the right side. Last step is to fit the model by inla(), using the default priors.
 
 
 ```{r formula, echo=F, message=FALSE}
@@ -269,6 +278,7 @@ tm_shape(grid_a) +
 
 ```
 
+\newpage
 
 
 
